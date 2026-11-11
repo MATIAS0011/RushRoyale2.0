@@ -54,6 +54,14 @@ Cada carta mostra a forma do guardião sobre um fundo escuro da mesma cor. O **n
 - **Invocar:** escolhe uma casa livre ao acaso e um dos 5 guardiões ao acaso (chances iguais), sempre de nível 1.
 - **Não dá para invocar** sem energia suficiente, com o tabuleiro cheio ou com a partida encerrada. Nesses casos nada é gasto, e o botão aparece apagado (com "Cheio" quando o tabuleiro está lotado) e treme se for tocado.
 
+### Fusão
+- **Como fundir:** arraste uma carta (toque ou mouse) e solte sobre outra **do mesmo tipo e do mesmo nível**.
+- **Resultado:** a carta arrastada some. Na casa de destino nasce um guardião **de nível +1, com tipo sorteado** entre os 5 (chances iguais, inclusive o tipo original), pronto para atacar.
+- **Nível máximo: 7.** Dois guardiões de nível 7 não se fundem.
+- A fusão **não gasta energia** e **não muda o custo de invocar**.
+- **Soltar em lugar inválido** (carta diferente, casa vazia, fora do tabuleiro) faz a carta voltar para o lugar, sem nenhum efeito.
+- **Durante o arraste:** a carta de origem fica apagada, todas as cartas compatíveis brilham e a que está sob a carta arrastada brilha mais forte. Ao fundir, um anel e faíscas na cor do novo guardião.
+
 ### Combate (em `js/dados.js` e `js/combate.js`)
 - **Alcance:** todo guardião alcança o caminho inteiro.
 - **Alvo:** o inimigo **mais avançado** no caminho (empate: o que surgiu primeiro). Exceção: a **Geada prefere o mais avançado que ainda não está lento**. Se todos estiverem lentos, mira o mais avançado.
@@ -174,6 +182,18 @@ Explosões, faíscas de acerto e números de crítico entram em `estado.efeitos`
 ### D22. Partida de referência dos testes de determinismo: semente 7
 Com o roteiro de 14 invocações, a semente 7 sorteia os 5 tipos, tem dezenas de abates e termina em derrota. Ela cobre todo o combate. Observação de balanceamento: algumas sementes (como a 12345) sorteiam só Tambores e Geada no começo e perdem sem abater ninguém. Isso deve ser considerado nas ondas da etapa 6 e no balanceamento da etapa 7.
 
+### D23. A ação de fundir leva casas e ids
+A ação é `{ tipo: 'fundir', de, para, idDe, idPara }`. A simulação só funde se as duas casas ainda tiverem exatamente as cartas que o jogador arrastou. Isso evita fundir a carta errada quando o tabuleiro muda entre o gesto e o passo (por exemplo, duas fusões com a mesma carta no mesmo passo: só a primeira vale). Uma fusão recusada não muda nada, nem o RNG.
+
+### D24. O arraste é só interface; quem decide é a simulação
+O arraste vive em `ui.arraste`, no `js/main.js`, fora do estado da simulação. Só ao soltar sobre um destino válido a ação `fundir` entra na fila.
+- **No toque**, a carta é desenhada 28 px acima do dedo, para não ficar escondida. O destino é a casa sob a **carta** (o que o jogador vê), não sob o dedo.
+- **No mouse** não há essa elevação.
+- Só um ponteiro arrasta por vez (o segundo dedo é ignorado). Se a carta deixar de existir durante o arraste, o arraste é cancelado.
+
+### D25. Fusões no teste de determinismo
+O roteiro aceita ações calculadas na hora, a partir do estado (um "robô" que funde o primeiro par válido). Como o estado é idêntico em todas as execuções, a ação calculada também é. A partida de referência (semente 7) tem fusões, e os 5 tipos lutam em algum momento.
+
 ---
 
 ## Histórico das etapas
@@ -198,3 +218,8 @@ Com o roteiro de 14 invocações, a semente 7 sorteia os 5 tipos, tem dezenas de
 - Lança (dano único), Geada (lentidão), Brasa (área), Tambor (buff nos vizinhos) e Sorte (crítico) funcionando, com projéteis, explosões, números de crítico, anel de lentidão e setinha de buff.
 - `CLAUDE.md` criado com as regras de trabalho do projeto.
 - Testes: 43 automáticos (13 novos de combate). O determinismo agora cobre uma partida com os 5 guardiões lutando.
+
+### Etapa 5: fusão por arrastar ✅
+- Arrastar com toque ou mouse, destinos válidos destacados, carta elevada acima do dedo no toque, efeito visual de fusão.
+- Fusão validada na simulação por casa + id, nível máximo 7 e tipo sorteado.
+- Testes: 49 automáticos (6 novos de fusão), mais a integração com eventos de ponteiro reais (mouse, toque, destino inválido, soltar fora, toque em casa vazia).

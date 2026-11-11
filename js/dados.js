@@ -19,6 +19,7 @@
     // intervaloTicks = ticks entre ataques (60 = 1 s), antes do buff do Tambor.
     TIPOS_GUARDIAO: ['lanca', 'geada', 'brasa', 'tambor', 'sorte'],
     DANO_POR_NIVEL: 0.8,
+    NIVEL_MAX: 7,      // dois guardiões de nível 7 não se fundem
     VEL_PROJETIL: 420, // px/s
     GUARDIOES: {
       lanca:  { nome: 'Lança',  papel: 'dano único',

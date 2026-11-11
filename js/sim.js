@@ -30,6 +30,7 @@
       custoInvocar: GF.dados.ENERGIA.custoInicial,
       invocacoes: 0,
       abates: 0,
+      fusoes: 0,
       tabuleiro: tabuleiro,     // 15 casas; null = livre, ou { id, tipo, nivel, criadoTick }
       inimigos: [],
       projeteis: [],
@@ -46,6 +47,35 @@
   // Tipos desconhecidos são ignorados, mas registrados.
   function aplicarAcao(estado, acao) {
     if (acao.tipo === 'invocar') invocar(estado);
+    else if (acao.tipo === 'fundir') fundir(estado, acao.de, acao.para, acao.idDe, acao.idPara);
+  }
+
+  // ---------- Fusão ----------
+  // Duas cartas do mesmo tipo e nível, em casas diferentes, abaixo do nível máximo.
+  // idDe/idPara (opcionais) garantem que são as mesmas cartas que o jogador arrastou.
+  function podeFundir(estado, de, para, idDe, idPara) {
+    if (estado.fase !== 'jogando' || de === para) return false;
+    var a = estado.tabuleiro[de], b = estado.tabuleiro[para];
+    if (!a || !b) return false;
+    if (idDe !== undefined && a.id !== idDe) return false;
+    if (idPara !== undefined && b.id !== idPara) return false;
+    return a.tipo === b.tipo && a.nivel === b.nivel && a.nivel < GF.dados.NIVEL_MAX;
+  }
+
+  // A carta arrastada (de) some; na casa de destino (para) nasce um guardião
+  // de nível +1 com tipo sorteado. Retorna o novo guardião, ou null se inválido.
+  function fundir(estado, de, para, idDe, idPara) {
+    if (!podeFundir(estado, de, para, idDe, idPara)) return null;
+    var nivel = estado.tabuleiro[para].nivel + 1;
+    var tipos = GF.dados.TIPOS_GUARDIAO;
+    var tipo = tipos[GF.rng.inteiro(estado.rng, tipos.length)];
+    estado.tabuleiro[de] = null;
+    var novo = criarGuardiao(estado, tipo, nivel);
+    estado.tabuleiro[para] = novo;
+    estado.fusoes++;
+    var c = GF.layout.casa(para);
+    estado.efeitos.push({ tipo: 'fusao', x: c.cx, y: c.cy, tick: estado.tick, cor: tipo });
+    return novo;
   }
 
   // ---------- Energia e invocação ----------
@@ -193,6 +223,7 @@
       rng: estado.rng.s,
       vida: estado.vida,
       abates: estado.abates,
+      fusoes: estado.fusoes,
       energia: estado.energia,
       custoInvocar: estado.custoInvocar,
       tabuleiro: estado.tabuleiro,
@@ -214,6 +245,8 @@
     podeInvocar: podeInvocar,
     invocar: invocar,
     criarGuardiao: criarGuardiao,
+    podeFundir: podeFundir,
+    fundir: fundir,
     casasLivres: casasLivres,
     resumo: resumo
   };

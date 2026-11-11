@@ -252,15 +252,34 @@
     ctx.restore();
   }
 
-  function desenharGuardioes(ctx, estado, alfa) {
+  function desenharGuardioes(ctx, estado, alfa, arraste) {
+    var pulso = 0.5 + 0.5 * Math.sin(estado.tick / 6);
     for (var i = 0; i < estado.tabuleiro.length; i++) {
       var g = estado.tabuleiro[i];
       if (!g) continue;
       var c = L.casa(i);
+
+      // Destinos válidos da fusão brilham; o que está sob o dedo brilha mais.
+      if (arraste && GF.sim.podeFundir(estado, arraste.casa, i)) {
+        var sob = arraste.alvo === i;
+        ctx.save();
+        ctx.shadowColor = '#fff';
+        ctx.shadowBlur = sob ? 18 : 8 + 6 * pulso;
+        ctx.strokeStyle = sob ? '#ffffff' : 'rgba(255,255,255,' + (0.45 + 0.4 * pulso) + ')';
+        ctx.lineWidth = sob ? 4 : 2.5;
+        retArredondado(ctx, c.x + 1, c.y + 1, c.w - 2, c.h - 2, 10);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Carta de origem do arraste fica apagada no lugar.
+      if (arraste && arraste.casa === i) ctx.globalAlpha = 0.3;
+
       // Entrada com leve "salto" nos primeiros 12 ticks
       var t = Math.min(1, (estado.tick - g.criadoTick + alfa) / 12);
       var escala = t < 1 ? 1 + 0.25 * Math.sin(t * Math.PI) - 0.6 * (1 - t) : 1;
       desenharCarta(ctx, g, c.cx, c.cy, Math.max(0.1, escala));
+      ctx.globalAlpha = 1;
 
       // Marca de buff: setinha verde no canto (vizinho de um Tambor)
       if (g.tipo !== 'tambor' && GF.combate.buffEm(estado, i) > 0) {
@@ -324,7 +343,22 @@
       var e = estado.efeitos[i];
       var t = Math.min(1, (estado.tick - e.tick + alfa) / dur); // 0 → 1
       ctx.globalAlpha = 1 - t;
-      if (e.tipo === 'explosao') {
+      if (e.tipo === 'fusao') {
+        // Anel que se abre + 8 faíscas, na cor do guardião que nasceu
+        var corF = CORES.guardiao[e.cor].forma;
+        ctx.strokeStyle = corF;
+        ctx.lineWidth = 3 * (1 - t) + 1;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, 18 + 26 * t, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        for (var k = 0; k < 8; k++) {
+          var ang = k * Math.PI / 4 + t;
+          ctx.beginPath();
+          ctx.arc(e.x + Math.cos(ang) * (20 + 30 * t), e.y + Math.sin(ang) * (20 + 30 * t), 2.5 * (1 - t) + 0.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (e.tipo === 'explosao') {
         ctx.fillStyle = 'rgba(255, 120, 60, 0.35)';
         ctx.strokeStyle = CORES.guardiao.brasa.forma;
         ctx.lineWidth = 3;
@@ -541,10 +575,21 @@
     desenharFundo(ctx);
     desenharCaminho(ctx, estado.tick);
     desenharTabuleiro(ctx);
-    desenharGuardioes(ctx, estado, alfa);
+    desenharGuardioes(ctx, estado, alfa, info.arraste);
     desenharInimigos(ctx, estado, alfa);
     desenharProjeteis(ctx, estado, alfa);
     desenharEfeitos(ctx, estado, alfa);
+
+    // Carta arrastada: por cima de tudo, um pouco maior e com sombra
+    var a = info.arraste;
+    if (a && estado.tabuleiro[a.casa]) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = 14;
+      ctx.shadowOffsetY = 6;
+      desenharCarta(ctx, estado.tabuleiro[a.casa], a.x, a.y, 1.12);
+      ctx.restore();
+    }
     desenharHud(ctx, estado);
     desenharControles(ctx, laco, estado, info);
     desenharFim(ctx, estado);

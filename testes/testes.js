@@ -21,6 +21,24 @@
   }
 
   // ---------- Utilitário de replay ----------
+  // Uma entrada do roteiro tem uma ação fixa ({ tipo: ... }) ou uma função que
+  // calcula a ação a partir do estado naquele tick (como um robô jogando).
+  function acaoDoRoteiro(entrada, estado) {
+    return typeof entrada.acao === 'function' ? entrada.acao(estado) : entrada.acao;
+  }
+
+  // Robô: funde o primeiro par válido que encontrar (ou manda uma fusão inválida).
+  function roboFundir(estado) {
+    for (var de = 0; de < estado.tabuleiro.length; de++) {
+      for (var para = 0; para < estado.tabuleiro.length; para++) {
+        if (GF.sim.podeFundir(estado, de, para)) {
+          return { tipo: 'fundir', de: de, para: para, idDe: estado.tabuleiro[de].id, idPara: estado.tabuleiro[para].id };
+        }
+      }
+    }
+    return { tipo: 'fundir', de: -1, para: -1 };
+  }
+
   // Roda uma partida pelo laço real (GF.loop.avancar), alimentando quadros com
   // os tempos dados por geradorDt. As ações do roteiro entram exatamente no tick
   // indicado, como aconteceria num replay.
@@ -33,7 +51,7 @@
     var passoOriginal = GF.sim.passo;
     GF.sim.passo = function (e) {
       for (var i = 0; i < roteiro.length; i++) {
-        if (roteiro[i].tick === e.tick) GF.sim.agendar(e, roteiro[i].acao);
+        if (roteiro[i].tick === e.tick) GF.sim.agendar(e, acaoDoRoteiro(roteiro[i], e));
       }
       passoOriginal(e);
     };
@@ -55,7 +73,7 @@
     var estado = GF.sim.criarEstado(semente);
     while (estado.tick < ticks && estado.fase === 'jogando') {
       for (var i = 0; i < roteiro.length; i++) {
-        if (roteiro[i].tick === estado.tick) GF.sim.agendar(estado, roteiro[i].acao);
+        if (roteiro[i].tick === estado.tick) GF.sim.agendar(estado, acaoDoRoteiro(roteiro[i], estado));
       }
       GF.sim.passo(estado);
     }
@@ -91,17 +109,27 @@
   var TICKS = 60 * 120; // até 2 min de jogo (a partida de demonstração termina antes, em derrota)
   // Invocações reais. A do tick 334 acontece sem energia suficiente e precisa
   // ser recusada do mesmo jeito em todas as execuções.
+  // Fusões do robô em alguns ticks: o par é escolhido no momento, pelo estado.
   var ROTEIRO = [10, 333, 334, 600, 900, 1200, 1500, 1800, 2000, 2001, 2400, 3000, 3600, 4200]
-    .map(function (t) { return { tick: t, acao: { tipo: 'invocar' } }; });
+    .map(function (t) { return { tick: t, acao: { tipo: 'invocar' } }; })
+    .concat([1000, 1300, 1700, 2100, 2500, 2700, 3300, 3900, 4400].map(function (t) { return { tick: t, acao: roboFundir }; }))
+    .sort(function (a, b) { return a.tick - b.tick; });
 
   var referencia = rodarDireto(SEMENTE, ROTEIRO, TICKS);
   var resumoRef = GF.sim.resumo(referencia);
 
   teste('Determinismo: a partida de referência tem os 5 guardiões, combate e chega à derrota', function () {
+    // Tipos que estiveram no tabuleiro em algum momento (as fusões trocam tipos).
     var tipos = {};
-    referencia.tabuleiro.forEach(function (g) { if (g) tipos[g.tipo] = true; });
-    afirmar(Object.keys(tipos).length === 5, 'tipos sorteados: ' + Object.keys(tipos).join(','));
+    var e = GF.sim.criarEstado(SEMENTE);
+    while (e.tick < TICKS && e.fase === 'jogando') {
+      for (var i = 0; i < ROTEIRO.length; i++) if (ROTEIRO[i].tick === e.tick) GF.sim.agendar(e, acaoDoRoteiro(ROTEIRO[i], e));
+      GF.sim.passo(e);
+      e.tabuleiro.forEach(function (g) { if (g) tipos[g.tipo] = true; });
+    }
+    afirmar(Object.keys(tipos).length === 5, 'tipos que lutaram: ' + Object.keys(tipos).join(','));
     afirmar(referencia.abates > 10, 'abates=' + referencia.abates);
+    afirmar(referencia.fusoes >= 2, 'fusões=' + referencia.fusoes);
     afirmar(referencia.fase === 'derrota', 'fase=' + referencia.fase + ' tick=' + referencia.tick);
   });
 
@@ -517,6 +545,96 @@
     inimigoEm(e, 'comum', 300);
     GF.sim.passo(e);
     afirmar(e.projeteis.length === 1, 'não disparou de imediato');
+  });
+
+  // ---------- Etapa 5: fusão ----------
+  // Estado com cartas fixas: { casa: [tipo, nivel] }
+  function tabuleiroCom(cartas, semente) {
+    return cenarioCombate(cartas, semente);
+  }
+
+  teste('Fusão: duas cartas iguais viram uma de nível +1 na casa de destino; a origem fica livre', function () {
+    var e = tabuleiroCom({ 2: ['lanca', 1], 9: ['lanca', 1], 4: ['geada', 1] });
+    var idA = e.tabuleiro[2].id, idB = e.tabuleiro[9].id;
+    var novo = GF.sim.fundir(e, 2, 9, idA, idB);
+    afirmar(novo && e.tabuleiro[9] === novo, 'não fundiu');
+    afirmar(e.tabuleiro[2] === null, 'origem não ficou livre');
+    afirmar(novo.nivel === 2 && GF.dados.TIPOS_GUARDIAO.indexOf(novo.tipo) >= 0, 'novo inválido ' + JSON.stringify(novo));
+    afirmar(novo.id !== idA && novo.id !== idB && novo.recarga === 0, 'novo deveria ser uma carta nova, pronta');
+    afirmar(e.tabuleiro[4].tipo === 'geada', 'mexeu em outra casa');
+    afirmar(e.fusoes === 1 && e.efeitos.some(function (x) { return x.tipo === 'fusao'; }), 'sem contagem/efeito');
+  });
+
+  teste('Fusão: não gasta energia nem muda o custo de invocar', function () {
+    var e = tabuleiroCom({ 0: ['brasa', 3], 1: ['brasa', 3] });
+    var en = e.energia, custo = e.custoInvocar;
+    afirmar(GF.sim.fundir(e, 0, 1).nivel === 4, 'nível errado');
+    afirmar(e.energia === en && e.custoInvocar === custo, 'energia/custo mudaram');
+  });
+
+  teste('Fusão inválida não muda nada (nem o RNG): tipo, nível, casa, ids, nível máximo, fim de jogo', function () {
+    var casos = [
+      ['tipos diferentes', { 0: ['lanca', 1], 1: ['sorte', 1] }, 0, 1],
+      ['níveis diferentes', { 0: ['lanca', 1], 1: ['lanca', 2] }, 0, 1],
+      ['mesma casa', { 0: ['lanca', 1] }, 0, 0],
+      ['destino vazio', { 0: ['lanca', 1] }, 0, 5],
+      ['origem vazia', { 5: ['lanca', 1] }, 0, 5],
+      ['fora do tabuleiro', { 0: ['lanca', 1] }, 0, 15],
+      ['nível máximo (7+7)', { 0: ['tambor', 7], 1: ['tambor', 7] }, 0, 1]
+    ];
+    casos.forEach(function (c) {
+      var e = tabuleiroCom(c[1]);
+      var antes = GF.sim.resumo(e);
+      afirmar(GF.sim.fundir(e, c[2], c[3]) === null, c[0] + ': fundiu');
+      afirmar(GF.sim.resumo(e) === antes, c[0] + ': estado mudou');
+    });
+    // ids desatualizados: a carta da casa foi trocada desde o início do arraste
+    var e2 = tabuleiroCom({ 0: ['lanca', 1], 1: ['lanca', 1] });
+    var idVelho = e2.tabuleiro[0].id;
+    e2.tabuleiro[0] = GF.sim.criarGuardiao(e2, 'lanca', 1);
+    afirmar(GF.sim.fundir(e2, 0, 1, idVelho, e2.tabuleiro[1].id) === null, 'fundiu com id desatualizado');
+    var e3 = tabuleiroCom({ 0: ['lanca', 1], 1: ['lanca', 1] });
+    e3.fase = 'derrota';
+    afirmar(GF.sim.fundir(e3, 0, 1) === null, 'fundiu após a derrota');
+    var e4 = tabuleiroCom({ 0: ['lanca', 6], 1: ['lanca', 6] });
+    afirmar(GF.sim.fundir(e4, 0, 1).nivel === 7, '6+6 deveria virar 7');
+  });
+
+  teste('Fusão: o tipo do resultado é sorteado entre os 5, de forma equilibrada', function () {
+    var porTipo = {}, mesmo = 0, n = 500;
+    for (var s = 1; s <= n; s++) {
+      var e = tabuleiroCom({ 0: ['geada', 2], 1: ['geada', 2] }, s);
+      var t = GF.sim.fundir(e, 0, 1).tipo;
+      porTipo[t] = (porTipo[t] || 0) + 1;
+      if (t === 'geada') mesmo++;
+    }
+    GF.dados.TIPOS_GUARDIAO.forEach(function (t) {
+      var f = (porTipo[t] || 0) / n;
+      afirmar(f > 0.12 && f < 0.28, t + ' saiu em ' + (f * 100).toFixed(1) + '%');
+    });
+    afirmar(mesmo > 0, 'o próprio tipo também deveria poder sair');
+  });
+
+  teste('Fusão: pela fila de ações; duas fusões com a mesma carta no mesmo passo → só a primeira vale', function () {
+    var e = tabuleiroCom({ 0: ['sorte', 1], 1: ['sorte', 1], 2: ['sorte', 1] });
+    var ids = [e.tabuleiro[0].id, e.tabuleiro[1].id, e.tabuleiro[2].id];
+    GF.sim.agendar(e, { tipo: 'fundir', de: 0, para: 1, idDe: ids[0], idPara: ids[1] });
+    GF.sim.agendar(e, { tipo: 'fundir', de: 2, para: 1, idDe: ids[2], idPara: ids[1] }); // casa 1 já mudou
+    afirmar(e.tabuleiro[0] !== null, 'agendar não pode aplicar na hora');
+    GF.sim.passo(e);
+    afirmar(e.fusoes === 1, 'fusões=' + e.fusoes);
+    afirmar(e.tabuleiro[0] === null && e.tabuleiro[1].nivel === 2 && e.tabuleiro[2].nivel === 1, 'resultado errado');
+    afirmar(e.registro.length === 2, 'as duas ações deveriam ficar registradas');
+  });
+
+  teste('Fusão: carta nova ataca normalmente (com o dano do novo nível)', function () {
+    var e = tabuleiroCom({ 0: ['lanca', 1], 1: ['lanca', 1] }, 3);
+    var novo = GF.sim.fundir(e, 0, 1);
+    novo.tipo = 'lanca'; // fixa o tipo para medir o dano
+    var ini = inimigoEm(e, 'tanque', 300, 1e6);
+    ini.vel = 0;
+    rodar(e, 30);
+    afirmar(perto(ini.vidaMax - ini.vida, C.dano('lanca', 2), 1e-9), 'dano=' + (ini.vidaMax - ini.vida));
   });
 
   // ---------- Resultado ----------
