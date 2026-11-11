@@ -19,7 +19,37 @@ Jogo de navegador de defesa com cartas que se fundem. Nome, personagens e visual
 - **Invocar:** coloca um guardião aleatório de nível 1 numa casa livre. O custo sobe a cada uso.
 - **Fusão:** arrastar um guardião sobre outro **do mesmo tipo e do mesmo nível** gera um guardião de nível +1 e **tipo sorteado**.
 - **10 ondas**, com chefe nas ondas 5 e 10. O jogador tem vida. Cada inimigo que chega ao fim do caminho tira vida.
-- **Vitória:** sobreviver à onda 10. **Derrota:** a vida chega a 0.
+- **Vitória:** derrotar a onda 10 inteira (chefe e lacaios). **Derrota:** a vida chega a 0.
+
+### Ondas (em `js/dados.js`, `ONDAS`)
+- Antes de cada onda há uma **preparação com contagem regressiva**: 10 s antes da onda 1, 8 s antes das ondas de chefe e 6 s antes das demais. A energia passiva continua correndo.
+- **Uma onda termina** quando todos os seus inimigos já surgiram e nenhum está vivo (abatido ou escapado). Só então começa a preparação da próxima.
+- **A vida de todos os inimigos da onda** (inclusive chefes e lacaios) é a vida base × o multiplicador da onda.
+
+| Onda | Vida | Inimigos | Total |
+|---|---|---|---|
+| 1 | ×0,4 | 6 Fragmentos, um a cada 3,5 s | 6 |
+| 2 | ×0,8 | 8 Fragmentos + 4 Faíscas | 12 |
+| 3 | ×1,1 | 10 Fragmentos + 3 Rochas-ocas | 13 |
+| 4 | ×1,4 | 8 Faíscas + 10 Fragmentos + 4 Rochas-ocas | 22 |
+| **5** | ×1,8 | 8 Fragmentos + **Colosso da Fenda** | 9 |
+| 6 | ×2,2 | 12 Fragmentos + 8 Faíscas + 5 Rochas-ocas | 25 |
+| 7 | ×2,6 | 8 Rochas-ocas + 12 Faíscas | 20 |
+| 8 | ×3,1 | 16 Fragmentos + 8 Rochas-ocas + 10 Faíscas | 34 |
+| 9 | ×3,6 | 16 Faíscas + 10 Rochas-ocas + 16 Fragmentos | 42 |
+| **10** | ×4,2 | 6 Rochas-ocas + **Coração da Fenda** (+ lacaios) | 7+ |
+
+### Chefes
+| Chefe | Onda | Vida base (na onda) | Velocidade | Dano ao escapar | Energia | Habilidade |
+|---|---|---|---|---|---|---|
+| Colosso da Fenda (rocha espinhosa com rachadura) | 5 | 2500 (4500) | 22 px/s | 10 | 60 | resiste a metade da lentidão |
+| Coração da Fenda (cristal-coração pulsante) | 10 | 3000 (12 600) | 18 px/s | 20 (derrota na hora) | 100 | a cada 4 s solta 2 Fragmentos onde está, com a vida da onda |
+
+Enquanto um chefe está vivo, uma barra de vida com o nome dele aparece no topo.
+
+### Fim de partida
+- As telas de **Vitória** e **Derrota** mostram a onda alcançada, a vida restante, os abates, as fusões e o tempo.
+- **Só o botão "Jogar de novo" reinicia.** Tocar em outro lugar não faz nada.
 
 ### Jogador e caminho
 - **Vida inicial: 20.** Cada inimigo que chega ao fim tira o seu `dano`. A vida nunca fica negativa.
@@ -105,6 +135,8 @@ Cada carta mostra a forma do guardião sobre um fundo escuro da mesma cor. O **n
 - **Depois da D26** (QA interno, sementes 1 a 40): fundindo sempre 24/40, sem fundir 15/40.
 - **Ainda pendente:** mesmo fundindo, as derrotas restantes caem entre 45 e 64 s. É o começo apertado de cima, que a fusão não resolve.
 
+**QA da etapa 6** (ondas de verdade, sementes 1 a 40): fundindo sempre 17/40, sem fundir 0/40, e ninguém que só invoca perde vida na onda 1 (ver D28 e D29). Ainda pendente: o robô que funde sempre perdeu vida na onda 1 em 2/40 partidas. Nos dois casos ele fundiu as **duas únicas cartas de dano** que tinha e o sorteio deu um Tambor de nível 2, que não ataca. Um humano dificilmente faz isso, mas é o mesmo risco do Tambor descrito abaixo.
+
 **O Tambor não escala com o nível.** O dano multiplicativo não o afeta, porque ele não causa dano. Testei o buff por nível em +10%, +20% e +30% e não houve diferença mensurável (24, 23 e 23 de 40 vitórias fundindo), então ele ficou em +10%. Rever na etapa 7: fundir e sortear um Tambor ainda pode enfraquecer o tabuleiro.
 
 ---
@@ -159,8 +191,8 @@ Cada inimigo guarda `distAnt` (a distância no passo anterior). O desenho mistur
 ### D12. Fim de partida congela a simulação
 Com `fase` diferente de `'jogando'`, `passo()` não faz nada (nem avança o tick). Na tela, um toque recomeça a partida com a próxima semente, que é derivada da anterior e por isso também pode ser reproduzida. A tela completa de vitória e derrota vem na etapa 6.
 
-### D13. Fluxo de demonstração (provisório)
-Até as ondas existirem (etapa 6), surge um inimigo a cada 1,2 s, com tipo sorteado pelo RNG (comum tem chance dobrada). Os testes usam `criarEstado(semente, { semDemo: true })` para cenários controlados.
+### D13. Fluxo de demonstração (removido na etapa 6)
+Entre as etapas 2 e 5, surgia um inimigo a cada 1,2 s, com tipo sorteado. As ondas substituíram esse fluxo. Os testes agora usam `criarEstado(semente, { semOndas: true })` para cenários sem inimigos automáticos.
 
 ### D14. Quem valida a invocação é a simulação
 A interface usa `GF.sim.podeInvocar` só para desenhar o botão e decidir se treme. A ação `invocar` sempre passa pela fila, e a simulação valida de novo ao aplicá-la, porque o estado pode mudar entre o toque e o passo. Uma invocação recusada não altera nada, nem o RNG, mas fica no registro.
@@ -186,8 +218,8 @@ Os projéteis dão leitura visual de quem atira em quem, e o tempo de voo faz pa
 ### D21. Efeitos visuais ficam no estado da simulação
 Explosões, faíscas de acerto e números de crítico entram em `estado.efeitos` com o tick de criação e expiram depois de 30 ticks. Assim o desenho continua só lendo o estado. Os efeitos não entram no `resumo` dos testes.
 
-### D22. Partida de referência dos testes de determinismo: semente 7
-Com o roteiro de 14 invocações, a semente 7 sorteia os 5 tipos, tem dezenas de abates e termina em derrota. Ela cobre todo o combate. Observação de balanceamento: algumas sementes (como a 12345) sorteiam só Tambores e Geada no começo e perdem sem abater ninguém. Isso deve ser considerado nas ondas da etapa 6 e no balanceamento da etapa 7.
+### D22. Partida de referência dos testes de determinismo (semente 11 desde a etapa 6)
+Com o roteiro de invocações e fusões, a partida de referência precisa ter os 5 tipos lutando, combate, fusões e terminar em derrota. Desde a etapa 6 ela também precisa passar do chefe da onda 5. A semente 7 cumpria isso no fluxo de demonstração. Com as ondas ela deixou de sortear a Sorte, então a referência passou a ser a semente 11 (chega à onda 8, com 110 abates). Observação de balanceamento: algumas sementes (como a 12345) sorteiam só Tambores e Geada no começo e perdem sem abater ninguém. Isso deve ser considerado nas ondas da etapa 6 e no balanceamento da etapa 7.
 
 ### D23. A ação de fundir leva casas e ids
 A ação é `{ tipo: 'fundir', de, para, idDe, idPara }`. A simulação só funde se as duas casas ainda tiverem exatamente as cartas que o jogador arrastou. Isso evita fundir a carta errada quando o tabuleiro muda entre o gesto e o passo (por exemplo, duas fusões com a mesma carta no mesmo passo: só a primeira vale). Uma fusão recusada não muda nada, nem o RNG.
@@ -199,7 +231,7 @@ O arraste vive em `ui.arraste`, no `js/main.js`, fora do estado da simulação. 
 - Só um ponteiro arrasta por vez (o segundo dedo é ignorado). Se a carta deixar de existir durante o arraste, o arraste é cancelado.
 
 ### D25. Fusões no teste de determinismo
-O roteiro aceita ações calculadas na hora, a partir do estado (um "robô" que funde o primeiro par válido). Como o estado é idêntico em todas as execuções, a ação calculada também é. A partida de referência (semente 7) tem fusões, e os 5 tipos lutam em algum momento.
+O roteiro aceita ações calculadas na hora, a partir do estado (um "robô" que funde o primeiro par válido). Como o estado é idêntico em todas as execuções, a ação calculada também é. A partida de referência (ver D22) tem fusões, e os 5 tipos lutam em algum momento.
 
 ### D26. Dano por nível multiplicativo (×2,5), no lugar do linear (+80%)
 **Problema (QA da etapa 5):** com dano linear, duas cartas de nível 1 somavam 2,0× de dano, e a carta de nível 2 resultante dava só 1,8×. Além disso, o tipo sorteado podia sair um Tambor, que não causa dano. Fundir piorava o tabuleiro: 3/20 vitórias fundindo sempre contra 8/20 sem fundir.
@@ -215,7 +247,36 @@ O roteiro aceita ações calculadas na hora, a partir do estado (um "robô" que 
 
 **Garantia:** o teste "Fusão compensa" mede na simulação, para Lança, Geada, Brasa e Sorte, nos níveis 1 a 6, que o nível n+1 causa ≥ 2× o dano do nível n em 10 s. Com a fórmula antiga ele falha.
 
-**Consequência a acompanhar:** o nível 7 causa ≈ 244× o dano base. A vida dos inimigos e dos chefes nas ondas (etapa 6) precisa ser calibrada para isso.
+**Consequência a acompanhar:** o nível 7 causa ≈ 244× o dano base. A vida dos inimigos e dos chefes nas ondas (etapa 6) precisa ser calibrada para isso (ver D28).
+
+### D27. Ondas descritas como dados, simulação genérica
+Cada onda em `GF.dados.ONDAS` é `{ preparo, vida, chefe?, grupos: [{ tipo, n, intervalo, atraso }] }`. Ao começar uma onda, a simulação gera a lista de surgimentos (`ondas.pendentes`) com o tick de cada um, ordenada por tick (empates na ordem de definição). Não há sorteio nas ondas: a mesma onda é sempre igual. As habilidades dos chefes ficam nos dados do inimigo (`resistLento`, `invoca`). Ordem no passo: ações → energia → ondas e habilidades dos chefes → guardiões → projéteis → movimento e escapes → fim de onda e vitória → efeitos. Uma derrota no mesmo passo tem prioridade sobre a vitória.
+
+### D28. Curva de vida calibrada pelo poder que se alcança na prática, não pelo teto de 244×
+O QA pediu que a vida crescesse o bastante para o dano multiplicativo (D26). Mas, medindo com o robô (invoca sempre que pode e funde o primeiro par), o tabuleiro chega em média **só ao nível 3,3 a 3,5** em ~6 min de partida (~15× de dano), por causa do tipo sorteado e das 15 casas. Uma curva que seguisse o teto de 244× deixaria o jogo impossível.
+
+Curvas testadas (40 sementes cada, robô fundindo × sem fundir):
+
+| Multiplicador de vida da onda 1 → 10 | Fundindo | Sem fundir |
+|---|---|---|
+| 0,5 → 26 (geométrica, ~×1,5/onda) | 0/30 | 0/30 |
+| 0,5 → 10 | 0/30 | 0/30 |
+| 0,5 → 4,5 | 9/30 | 0/30 |
+| 0,5 → 2,4 (quase plana) | 27/30 | 10/30 (fácil demais) |
+| 0,4 → 4,0 | 25/40 | 0/40 |
+| **0,4 → 4,2 (escolhida)** | **17/40 (42%)** | **0/40** |
+
+Com a curva escolhida, quem funde vence ~40% (a maioria das derrotas é contra o **chefe final**) e quem não funde perde sempre, em geral na onda 9. A fusão é necessária, e o final é um desafio. Um jogador humano escolhe melhor o que fundir do que o robô, então deve vencer com mais frequência.
+
+### D29. Começo leve (onda 1)
+O QA apontou derrotas aos 42–56 s com o fluxo de demonstração. Agora:
+- a onda 1 só começa após **10 s** de preparação;
+- ela tem só **6 Fragmentos** com **40% da vida** (40 cada), um a cada 3,5 s.
+
+Com os 60 de energia iniciais, dá para invocar 2 guardiões antes da primeira onda. Um teste garante que o robô que só invoca não perde vida na onda 1 em 20 sementes.
+
+### D30. Reinício só pelo botão
+Antes, um toque em qualquer lugar da tela de fim reiniciava a partida, o que podia acontecer sem querer no último toque da partida. Agora só o botão "Jogar de novo" reinicia.
 
 ---
 
@@ -247,3 +308,11 @@ O roteiro aceita ações calculadas na hora, a partir do estado (um "robô" que 
 - Fusão validada na simulação por casa + id, nível máximo 7 e tipo sorteado.
 - Testes: 49 automáticos (6 novos de fusão), mais a integração com eventos de ponteiro reais (mouse, toque, destino inválido, soltar fora, toque em casa vazia).
 - **Ajuste pós-QA:** dano por nível passou a ser multiplicativo (×2,5), porque a fusão enfraquecia o jogador (D26). Teste novo garante n+1 ≥ 2× o dano de n. Total: 50 testes.
+
+### Etapa 6: 10 ondas, chefes, vitória e derrota ✅
+- 10 ondas definidas em dados, com preparação e contagem regressiva, e uma curva de vida calibrada por QA (D28).
+- Colosso da Fenda (onda 5, resiste à lentidão) e Coração da Fenda (onda 10, solta lacaios), com barra de vida no topo.
+- Onda 1 bem mais leve (D29).
+- Telas de vitória e derrota com estatísticas e botão "Jogar de novo" (D30).
+- O fluxo de demonstração foi removido. A referência de determinismo passou para a semente 11 (D22).
+- Testes: 59 automáticos (10 novos de ondas, chefes, vitória, derrota e começo leve).

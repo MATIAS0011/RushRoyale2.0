@@ -40,7 +40,8 @@
       return;
     }
     if (estado.fase !== 'jogando') {
-      recomecar();
+      // Tela de fim: só o botão reinicia (evita recomeçar sem querer).
+      if (GF.render.dentro(p, GF.render.BOTAO_REINICIAR)) recomecar();
       return;
     }
     if (GF.render.dentro(p, GF.render.BOTAO_INVOCAR)) {

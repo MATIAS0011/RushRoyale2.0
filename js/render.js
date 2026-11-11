@@ -33,7 +33,9 @@
     inimigo: {
       comum:  { corpo: '#8a4fd6', borda: '#c9a2ff' },
       rapido: { corpo: '#2fb3d6', borda: '#a8ecff' },
-      tanque: { corpo: '#5b4a3f', borda: '#a8907c' }
+      tanque: { corpo: '#5b4a3f', borda: '#a8907c' },
+      colosso: { corpo: '#4a3550', borda: '#d48cff', brilho: '#ff7be0' },
+      coracao: { corpo: '#7a1636', borda: '#ff6b8f', brilho: '#ffb0c4' }
     },
     // fundo = tom escuro da carta; forma = cor viva do símbolo
     guardiao: {
@@ -48,6 +50,7 @@
   // Botões da interface em coordenadas lógicas (usados também para o clique).
   var BOTAO_INVOCAR = { x: 115, y: 478, w: 130, h: 64 };
   var BOTAO_VELOCIDADE = { x: 268, y: 490, w: 64, h: 40 };
+  var BOTAO_REINICIAR = { x: 90, y: 430, w: 180, h: 54 }; // só na tela de fim
 
   var vista = { escala: 1, dpr: 1, cssW: W, cssH: H };
 
@@ -418,6 +421,49 @@
         ctx.stroke();
         ctx.fillStyle = cor.borda;
         ctx.fillRect(-r * 0.4, -2, r * 0.8, 4);
+      } else if (ini.tipo === 'colosso') {
+        // Rocha espinhosa com uma rachadura brilhante
+        ctx.beginPath();
+        for (var k2 = 0; k2 < 14; k2++) {
+          var a2 = k2 * Math.PI / 7 + estado.tick * 0.004;
+          var rr = k2 % 2 ? r * 0.78 : r;
+          ctx.lineTo(Math.cos(a2) * rr, Math.sin(a2) * rr);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.strokeStyle = cor.brilho;
+        ctx.shadowColor = cor.brilho;
+        ctx.shadowBlur = 10;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.2, -r * 0.6); ctx.lineTo(r * 0.15, -r * 0.1);
+        ctx.lineTo(-r * 0.1, r * 0.2); ctx.lineTo(r * 0.2, r * 0.6);
+        ctx.stroke();
+      } else if (ini.tipo === 'coracao') {
+        // Cristal-coração pulsante com estilhaços orbitando
+        var pul = 1 + 0.08 * Math.sin(estado.tick / 8);
+        ctx.save();
+        ctx.scale(pul, pul);
+        ctx.shadowColor = cor.borda;
+        ctx.shadowBlur = 16;
+        ctx.beginPath();
+        ctx.moveTo(0, -r); ctx.lineTo(r * 0.8, -r * 0.2); ctx.lineTo(0, r);
+        ctx.lineTo(-r * 0.8, -r * 0.2); ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = cor.brilho;
+        ctx.beginPath();
+        ctx.arc(0, -r * 0.1, r * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        ctx.fillStyle = cor.borda;
+        for (var k3 = 0; k3 < 3; k3++) {
+          var a3 = estado.tick * 0.05 + k3 * Math.PI * 2 / 3;
+          ctx.beginPath();
+          ctx.arc(Math.cos(a3) * (r + 8), Math.sin(a3) * (r + 8), 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
       } else {
         // Bolha com um olho
         ctx.beginPath();
@@ -442,8 +488,8 @@
         ctx.setLineDash([]);
       }
 
-      // Barra de vida (só quando ferido)
-      if (ini.vida < ini.vidaMax) {
+      // Barra de vida (só quando ferido; chefes usam a barra grande do topo)
+      if (!ini.chefe && ini.vida < ini.vidaMax) {
         var bw = 22, bh = 4;
         ctx.fillStyle = CORES.barraFundo;
         ctx.fillRect(p.x - bw / 2, p.y - r - 9, bw, bh);
@@ -462,11 +508,73 @@
     ctx.font = 'bold 20px system-ui, sans-serif';
     ctx.fillText(String(estado.vida), 48, 41);
 
-    // Título curto no centro
+    // Onda atual no centro
+    var o = estado.ondas, total = GF.dados.ONDAS.length;
     ctx.textAlign = 'center';
-    ctx.fillStyle = CORES.textoFraco;
-    ctx.font = 'bold 14px system-ui, sans-serif';
-    ctx.fillText('Guardiões da Fenda', W / 2, 41);
+    if (o) {
+      ctx.fillStyle = CORES.texto;
+      ctx.font = 'bold 18px system-ui, sans-serif';
+      ctx.fillText('Onda ' + Math.max(1, o.atual) + '/' + total, W / 2, 41);
+    }
+
+    // Barra do chefe vivo
+    var chefe = null;
+    for (var i = 0; i < estado.inimigos.length; i++) if (estado.inimigos[i].chefe) { chefe = estado.inimigos[i]; break; }
+    if (chefe) {
+      var bx = 40, by = 74, bw = W - 80, bh = 10;
+      ctx.fillStyle = CORES.inimigo[chefe.tipo].borda;
+      ctx.font = 'bold 12px system-ui, sans-serif';
+      ctx.fillText(GF.dados.INIMIGOS[chefe.tipo].nome, W / 2, by - 10);
+      ctx.fillStyle = CORES.barraFundo;
+      retArredondado(ctx, bx, by, bw, bh, 5);
+      ctx.fill();
+      ctx.fillStyle = CORES.vida;
+      var frac = Math.max(0, chefe.vida / chefe.vidaMax);
+      if (frac > 0) {
+        retArredondado(ctx, bx, by, Math.max(bh, bw * frac), bh, 5);
+        ctx.fill();
+      }
+    }
+  }
+
+  // Avisos no meio do tabuleiro: contagem antes da onda e nome dela ao começar.
+  function desenharAvisoOnda(ctx, estado) {
+    var o = estado.ondas;
+    if (!o || estado.fase !== 'jogando') return;
+    var texto = null, sub = null, cor = CORES.texto, alfa = 1;
+    var proxima = GF.dados.ONDAS[o.atual]; // definição da próxima (preparo)
+    if (o.fase === 'preparo') {
+      var falta = Math.ceil((o.proximaTick - estado.tick) / GF.sim.TICKS_POR_SEG);
+      texto = 'Onda ' + (o.atual + 1) + ' em ' + falta;
+      if (proxima.chefe) { sub = 'Chefe à vista!'; cor = CORES.vida; }
+      else if (o.atual === 0) sub = 'Invoque guardiões e funda cartas iguais';
+    } else {
+      var desde = estado.tick - o.inicioTick;
+      if (desde < 90) {
+        var def = GF.dados.ONDAS[o.atual - 1];
+        texto = 'Onda ' + o.atual;
+        if (def.chefe) { sub = 'Chefe!'; cor = CORES.vida; }
+        alfa = desde < 60 ? 1 : 1 - (desde - 60) / 30;
+      }
+    }
+    if (!texto) return;
+    ctx.save();
+    ctx.globalAlpha = alfa * 0.85;
+    ctx.fillStyle = 'rgba(10, 8, 18, 0.8)';
+    retArredondado(ctx, 60, 400 - 24, W - 120, sub ? 68 : 48, 12);
+    ctx.fill();
+    ctx.globalAlpha = alfa;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = cor;
+    ctx.font = 'bold 22px system-ui, sans-serif';
+    ctx.fillText(texto, W / 2, 400);
+    if (sub) {
+      ctx.font = '13px system-ui, sans-serif';
+      ctx.fillStyle = sub.indexOf('Chefe') === 0 ? cor : CORES.textoFraco;
+      ctx.fillText(sub, W / 2, 426);
+    }
+    ctx.restore();
   }
 
   function desenharCoracao(ctx, x, y, s) {
@@ -553,16 +661,59 @@
 
   function desenharFim(ctx, estado) {
     if (estado.fase === 'jogando') return;
-    ctx.fillStyle = 'rgba(8, 6, 14, 0.75)';
+    var vitoria = estado.fase === 'vitoria';
+    ctx.fillStyle = 'rgba(8, 6, 14, 0.82)';
     ctx.fillRect(0, 0, W, H);
+
+    // Painel
+    ctx.fillStyle = '#1b1530';
+    ctx.strokeStyle = vitoria ? CORES.base : CORES.vida;
+    ctx.lineWidth = 2.5;
+    retArredondado(ctx, 40, 150, W - 80, 350, 18);
+    ctx.fill();
+    ctx.stroke();
+
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = estado.fase === 'derrota' ? CORES.vida : CORES.barraVida;
+    ctx.fillStyle = vitoria ? CORES.base : CORES.vida;
     ctx.font = 'bold 36px system-ui, sans-serif';
-    ctx.fillText(estado.fase === 'derrota' ? 'Derrota' : 'Vitória', W / 2, H / 2 - 20);
-    ctx.fillStyle = CORES.texto;
+    ctx.fillText(vitoria ? 'Vitória!' : 'Derrota', W / 2, 200);
+    ctx.fillStyle = CORES.textoFraco;
+    ctx.font = '14px system-ui, sans-serif';
+    ctx.fillText(vitoria ? 'A fenda foi selada.' : 'A fenda venceu desta vez.', W / 2, 234);
+
+    // Estatísticas
+    var o = estado.ondas;
+    var seg = Math.floor(estado.tick / GF.sim.TICKS_POR_SEG);
+    var linhas = [
+      ['Onda alcançada', (o ? Math.max(1, o.atual) : 0) + '/' + GF.dados.ONDAS.length],
+      ['Vida restante', String(estado.vida)],
+      ['Inimigos abatidos', String(estado.abates)],
+      ['Fusões', String(estado.fusoes)],
+      ['Tempo', Math.floor(seg / 60) + ':' + ('0' + seg % 60).slice(-2)]
+    ];
     ctx.font = '15px system-ui, sans-serif';
-    ctx.fillText('Toque para recomeçar', W / 2, H / 2 + 22);
+    for (var i = 0; i < linhas.length; i++) {
+      var y = 274 + i * 28;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = CORES.textoFraco;
+      ctx.fillText(linhas[i][0], 70, y);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = CORES.texto;
+      ctx.fillText(linhas[i][1], W - 70, y);
+    }
+
+    // Botão "Jogar de novo"
+    var b = BOTAO_REINICIAR;
+    ctx.fillStyle = CORES.botaoInvocar;
+    ctx.strokeStyle = CORES.botaoInvocarBorda;
+    retArredondado(ctx, b.x, b.y, b.w, b.h, 14);
+    ctx.fill();
+    ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = CORES.texto;
+    ctx.font = 'bold 18px system-ui, sans-serif';
+    ctx.fillText('Jogar de novo', b.x + b.w / 2, b.y + b.h / 2 + 1);
   }
 
   function desenhar(ctx, estado, laco, info) {
@@ -592,6 +743,7 @@
     }
     desenharHud(ctx, estado);
     desenharControles(ctx, laco, estado, info);
+    desenharAvisoOnda(ctx, estado);
     desenharFim(ctx, estado);
   }
 
@@ -612,6 +764,7 @@
     desenhar: desenhar,
     desenharCarta: desenharCarta,
     BOTAO_INVOCAR: BOTAO_INVOCAR,
-    BOTAO_VELOCIDADE: BOTAO_VELOCIDADE
+    BOTAO_VELOCIDADE: BOTAO_VELOCIDADE,
+    BOTAO_REINICIAR: BOTAO_REINICIAR
   };
 })(window.GF = window.GF || {});

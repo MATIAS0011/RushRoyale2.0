@@ -143,7 +143,8 @@
     }
 
     if (p.tipo === 'geada') {
-      var f = lentidao(p.nivel);
+      // Chefes podem resistir a parte da lentidão (Colosso: metade).
+      var f = lentidao(p.nivel) * (1 - (D.INIMIGOS[alvo.tipo].resistLento || 0));
       alvo.lentoFator = Math.max(alvo.lentoTicks > 0 ? alvo.lentoFator : 0, f);
       alvo.lentoTicks = D.GUARDIOES.geada.lentoTicks;
     }

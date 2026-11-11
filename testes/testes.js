@@ -103,10 +103,10 @@
   });
 
   // ---------- Determinismo ----------
-  // Semente 7 com este roteiro: sorteia os 5 tipos de guardião, tem dezenas de
-  // abates e termina em derrota. Se o balanceamento mudar, confira o 1º teste abaixo.
-  var SEMENTE = 7;
-  var TICKS = 60 * 120; // até 2 min de jogo (a partida de demonstração termina antes, em derrota)
+  // Semente 11 com este roteiro: os 5 tipos de guardião lutam, passa do chefe da onda 5,
+  // chega à onda 8 e termina em derrota. Se o balanceamento mudar, confira o 1º teste abaixo.
+  var SEMENTE = 11;
+  var TICKS = 60 * 900; // até 15 min de jogo (com este roteiro a partida termina antes, em derrota)
   // Invocações reais. A do tick 334 acontece sem energia suficiente e precisa
   // ser recusada do mesmo jeito em todas as execuções.
   // Fusões do robô em alguns ticks: o par é escolhido no momento, pelo estado.
@@ -130,6 +130,7 @@
     afirmar(Object.keys(tipos).length === 5, 'tipos que lutaram: ' + Object.keys(tipos).join(','));
     afirmar(referencia.abates > 10, 'abates=' + referencia.abates);
     afirmar(referencia.fusoes >= 2, 'fusões=' + referencia.fusoes);
+    afirmar(referencia.ondas.atual >= 6, 'não passou do chefe da onda 5: onda ' + referencia.ondas.atual);
     afirmar(referencia.fase === 'derrota', 'fase=' + referencia.fase + ' tick=' + referencia.tick);
   });
 
@@ -217,7 +218,7 @@
   });
 
   teste('Inimigo percorre o caminho no tempo certo (comprimento / velocidade)', function () {
-    var e = GF.sim.criarEstado(1, { semDemo: true });
+    var e = GF.sim.criarEstado(1, { semOndas: true });
     var ini = GF.sim.criarInimigo(e, 'comum');
     var esperado = Math.ceil(L.COMPRIMENTO / ini.vel * GF.sim.TICKS_POR_SEG);
     var t = 0;
@@ -226,7 +227,7 @@
   });
 
   teste('Inimigo que escapa tira vida conforme o dano do tipo e some', function () {
-    var e = GF.sim.criarEstado(1, { semDemo: true });
+    var e = GF.sim.criarEstado(1, { semOndas: true });
     GF.sim.criarInimigo(e, 'comum');
     GF.sim.criarInimigo(e, 'tanque');
     var v0 = e.vida;
@@ -236,7 +237,7 @@
   });
 
   teste('Inimigos mais rápidos ultrapassam os lentos (cada um anda na sua velocidade)', function () {
-    var e = GF.sim.criarEstado(1, { semDemo: true });
+    var e = GF.sim.criarEstado(1, { semOndas: true });
     var lento = GF.sim.criarInimigo(e, 'tanque');
     var rapido = GF.sim.criarInimigo(e, 'rapido');
     for (var t = 0; t < 120; t++) GF.sim.passo(e);
@@ -245,7 +246,7 @@
   });
 
   teste('Vida chega a 0 → derrota, vida não fica negativa e o mundo congela', function () {
-    var e = GF.sim.criarEstado(1, { semDemo: true });
+    var e = GF.sim.criarEstado(1, { semOndas: true });
     e.vida = 1;
     GF.sim.criarInimigo(e, 'tanque'); // dano 2 > vida 1
     for (var t = 0; t < 60 * 60 && e.fase === 'jogando'; t++) GF.sim.passo(e);
@@ -257,18 +258,6 @@
     afirmar(e.tick === tick && e.inimigos[0].dist === 0, 'simulação continuou após a derrota');
   });
 
-  teste('Demo: inimigos surgem no intervalo configurado, com tipos sorteados pelo RNG', function () {
-    var e = GF.sim.criarEstado(77);
-    var D = GF.dados.DEMO;
-    var ticks = D.primeiroTick + D.intervaloTicks * 9 + 1; // deve ter gerado 10
-    for (var t = 0; t < ticks; t++) GF.sim.passo(e);
-    afirmar(e.proximoId - 1 === 10, 'gerou ' + (e.proximoId - 1));
-    var e2 = GF.sim.criarEstado(77), e3 = GF.sim.criarEstado(78);
-    for (var k = 0; k < 60 * 20; k++) { GF.sim.passo(e2); GF.sim.passo(e3); }
-    var tipos2 = e2.inimigos.map(function (i) { return i.tipo; }).join();
-    var tipos3 = e3.inimigos.map(function (i) { return i.tipo; }).join();
-    afirmar(tipos2 !== tipos3, 'sementes diferentes deram a mesma sequência de tipos');
-  });
 
   // ---------- Etapa 3: energia e invocação ----------
   var EN = GF.dados.ENERGIA;
@@ -276,13 +265,13 @@
   function cheio(estado) { return GF.sim.casasLivres(estado).length === 0; }
 
   teste('Invocar: estado inicial com energia e custo configurados', function () {
-    var e = GF.sim.criarEstado(1, { semDemo: true });
+    var e = GF.sim.criarEstado(1, { semOndas: true });
     afirmar(e.energia === EN.inicial && e.custoInvocar === EN.custoInicial, 'energia=' + e.energia + ' custo=' + e.custoInvocar);
     afirmar(GF.sim.casasLivres(e).length === 15, 'tabuleiro não começa vazio');
   });
 
   teste('Invocar: gasta o custo, o custo sobe e um guardião nível 1 aparece numa casa livre', function () {
-    var e = GF.sim.criarEstado(3, { semDemo: true });
+    var e = GF.sim.criarEstado(3, { semOndas: true });
     var casa = GF.sim.invocar(e);
     afirmar(casa >= 0 && casa < 15, 'casa=' + casa);
     var g = e.tabuleiro[casa];
@@ -295,7 +284,7 @@
   });
 
   teste('Invocar: sem energia suficiente nada muda (nem o RNG)', function () {
-    var e = GF.sim.criarEstado(4, { semDemo: true });
+    var e = GF.sim.criarEstado(4, { semOndas: true });
     e.energia = EN.custoInicial - 1;
     var antes = GF.sim.resumo(e);
     afirmar(GF.sim.invocar(e) === -1, 'deveria recusar');
@@ -305,7 +294,7 @@
   });
 
   teste('Invocar: 15 invocações preenchem as 15 casas; a 16ª é recusada sem gastar', function () {
-    var e = GF.sim.criarEstado(5, { semDemo: true });
+    var e = GF.sim.criarEstado(5, { semOndas: true });
     e.energia = 1e6;
     var vistas = {};
     for (var i = 0; i < 15; i++) {
@@ -322,7 +311,7 @@
   teste('Invocar: os 5 tipos e as 15 casas são sorteados de forma equilibrada', function () {
     var porTipo = {}, porCasa = {}, n = 0;
     for (var s = 1; s <= 600; s++) {
-      var e = GF.sim.criarEstado(s, { semDemo: true });
+      var e = GF.sim.criarEstado(s, { semOndas: true });
       var c = GF.sim.invocar(e);
       porTipo[e.tabuleiro[c].tipo] = (porTipo[e.tabuleiro[c].tipo] || 0) + 1;
       porCasa[c] = (porCasa[c] || 0) + 1;
@@ -336,7 +325,7 @@
   });
 
   teste('Invocar: pela fila de ações, num passo de jogo', function () {
-    var e = GF.sim.criarEstado(6, { semDemo: true });
+    var e = GF.sim.criarEstado(6, { semOndas: true });
     GF.sim.agendar(e, { tipo: 'invocar' });
     afirmar(GF.sim.casasLivres(e).length === 15, 'agendar não pode aplicar na hora');
     GF.sim.passo(e);
@@ -345,20 +334,20 @@
   });
 
   teste('Invocar: recusado depois da derrota', function () {
-    var e = GF.sim.criarEstado(7, { semDemo: true });
+    var e = GF.sim.criarEstado(7, { semOndas: true });
     e.fase = 'derrota';
     afirmar(GF.sim.invocar(e) === -1, 'invocou após a derrota');
   });
 
   teste('Energia: +1 a cada 0,5 s (120 por minuto), sempre inteira', function () {
-    var e = GF.sim.criarEstado(8, { semDemo: true });
+    var e = GF.sim.criarEstado(8, { semOndas: true });
     for (var t = 0; t < 60 * 60; t++) GF.sim.passo(e);
     afirmar(e.energia === EN.inicial + 119 || e.energia === EN.inicial + 120, 'energia=' + e.energia);
     afirmar(e.energia === Math.floor(e.energia), 'energia não inteira');
   });
 
   teste('Energia: abater um inimigo dá a recompensa do tipo; dano parcial não dá', function () {
-    var e = GF.sim.criarEstado(9, { semDemo: true });
+    var e = GF.sim.criarEstado(9, { semOndas: true });
     var ini = GF.sim.criarInimigo(e, 'tanque');
     var en = e.energia;
     afirmar(GF.sim.causarDano(e, ini, 100) === false, 'morreu com dano parcial');
@@ -375,7 +364,7 @@
 
   // Estado sem demo com guardiões nas casas indicadas: { casa: [tipo, nivel] }
   function cenarioCombate(guardioes, semente) {
-    var e = GF.sim.criarEstado(semente || 1, { semDemo: true });
+    var e = GF.sim.criarEstado(semente || 1, { semOndas: true });
     for (var casa in guardioes) {
       e.tabuleiro[casa] = GF.sim.criarGuardiao(e, guardioes[casa][0], guardioes[casa][1] || 1);
     }
@@ -657,6 +646,144 @@
     ini.vel = 0;
     rodar(e, 30);
     afirmar(perto(ini.vidaMax - ini.vida, C.dano('lanca', 2), 1e-9), 'dano=' + (ini.vidaMax - ini.vida));
+  });
+
+  // ---------- Etapa 6: ondas, chefes, vitória e derrota ----------
+  var ONDAS = GF.dados.ONDAS;
+  var TPS = GF.sim.TICKS_POR_SEG;
+
+  // Avança até a condição (ou limite); devolve o nº de passos dados.
+  function ate(e, cond, limite) {
+    var n = 0;
+    while (!cond(e) && e.fase === 'jogando' && n < (limite || 60 * 1200)) { GF.sim.passo(e); n++; }
+    return n;
+  }
+  function totalInimigos(def) {
+    return def.grupos.reduce(function (s, g) { return s + g.n; }, 0);
+  }
+
+  teste('Ondas: são 10, com chefe exatamente nas ondas 5 e 10', function () {
+    afirmar(ONDAS.length === 10, ONDAS.length + ' ondas');
+    ONDAS.forEach(function (o, i) {
+      var temChefe = o.grupos.some(function (g) { return GF.dados.INIMIGOS[g.tipo].chefe; });
+      var deveTer = i === 4 || i === 9;
+      afirmar(temChefe === deveTer && !!o.chefe === deveTer, 'onda ' + (i + 1) + ': chefe=' + temChefe);
+    });
+    afirmar(ONDAS[4].grupos.some(function (g) { return g.tipo === 'colosso'; }), 'onda 5 sem Colosso');
+    afirmar(ONDAS[9].grupos.some(function (g) { return g.tipo === 'coracao'; }), 'onda 10 sem Coração');
+  });
+
+  teste('Ondas: vida dos inimigos cresce a cada onda; a onda 1 é a mais leve', function () {
+    for (var i = 1; i < ONDAS.length; i++) {
+      afirmar(ONDAS[i].vida > ONDAS[i - 1].vida, 'onda ' + (i + 1) + ' não é mais forte que a ' + i);
+    }
+    afirmar(ONDAS[0].vida <= 0.5 && totalInimigos(ONDAS[0]) <= 6, 'onda 1 pesada demais');
+  });
+
+  teste('Ondas: a 1ª onda só começa após a preparação, e os inimigos surgem com a vida da onda', function () {
+    var e = GF.sim.criarEstado(1);
+    var preparo = ONDAS[0].preparo * TPS;
+    rodar(e, preparo);
+    afirmar(e.inimigos.length === 0 && e.ondas.atual === 0 && e.ondas.fase === 'preparo', 'inimigo antes da hora');
+    GF.sim.passo(e);
+    afirmar(e.ondas.atual === 1 && e.ondas.fase === 'ativa' && e.inimigos.length === 1, 'onda 1 não começou no tick ' + preparo);
+    afirmar(perto(e.inimigos[0].vidaMax, GF.dados.INIMIGOS.comum.vida * ONDAS[0].vida, 1e-9), 'vida=' + e.inimigos[0].vidaMax);
+  });
+
+  teste('Ondas: cada onda gera exatamente os inimigos definidos, nos intervalos definidos', function () {
+    var e = GF.sim.criarEstado(2);
+    e.vida = 1e9; // ninguém defende; queremos só contar os surgimentos
+    for (var n = 1; n <= ONDAS.length; n++) {
+      // Para no tick exato em que a onda n vai começar (ainda em preparo).
+      ate(e, function (x) { return x.ondas.atual === n - 1 && x.ondas.fase === 'preparo' && x.tick === x.ondas.proximaTick; });
+      var antes = e.proximoId;
+      var inicio = e.tick;
+      ate(e, function (x) { return x.ondas.atual === n && x.ondas.pendentes.length === 0; });
+      // Conta pelos ids criados nesta onda (sem guardiões, só inimigos ganham id;
+      // lacaios do Coração ainda não surgiram: ele é o último e invoca após 4 s)
+      var surgiram = e.proximoId - antes;
+      afirmar(surgiram === totalInimigos(ONDAS[n - 1]), 'onda ' + n + ': ' + surgiram + ' de ' + totalInimigos(ONDAS[n - 1]));
+      var duracao = Math.max.apply(null, ONDAS[n - 1].grupos.map(function (g) { return g.atraso + (g.n - 1) * g.intervalo; }));
+      afirmar(Math.abs((e.tick - 1 - inicio) - Math.round(duracao * TPS)) <= 1, 'onda ' + n + ' durou ' + (e.tick - 1 - inicio) + ' ticks');
+    }
+  });
+
+  teste('Ondas: a próxima só começa quando a anterior foi limpa, depois da preparação', function () {
+    var e = GF.sim.criarEstado(3);
+    e.vida = 1e9;
+    ate(e, function (x) { return x.ondas.atual === 1 && x.ondas.pendentes.length === 0; });
+    afirmar(e.ondas.fase === 'ativa' && e.inimigos.length > 0, 'onda acabou com inimigos vivos');
+    ate(e, function (x) { return x.ondas.fase === 'preparo'; });
+    afirmar(e.inimigos.length === 0, 'preparo começou com inimigos vivos');
+    var fim = e.tick;
+    ate(e, function (x) { return x.ondas.atual === 2; });
+    afirmar(e.tick - 1 - fim === ONDAS[1].preparo * TPS || e.tick - fim === ONDAS[1].preparo * TPS, 'preparo de ' + (e.tick - fim) + ' ticks');
+  });
+
+  teste('Vitória: tabuleiro forte vence as 10 ondas, derrotando os dois chefes', function () {
+    var cartas = {};
+    for (var c = 0; c < 15; c++) cartas[c] = ['lanca', 6];
+    var e = tabuleiroCom(cartas, 4);
+    e.ondas = GF.sim.criarEstado(4).ondas; // liga as ondas no cenário controlado
+    var viuColosso = false, viuCoracao = false, viuLacaio = false;
+    while (e.fase === 'jogando' && e.tick < 60 * 1200) {
+      GF.sim.passo(e);
+      e.inimigos.forEach(function (i) {
+        if (i.tipo === 'colosso') viuColosso = true;
+        if (i.tipo === 'coracao') viuCoracao = true;
+      });
+      if (e.ondas.atual === 10 && e.inimigos.some(function (i) { return i.tipo === 'comum'; })) viuLacaio = true;
+    }
+    afirmar(e.fase === 'vitoria', 'fase=' + e.fase + ' onda=' + e.ondas.atual);
+    afirmar(e.ondas.atual === 10 && e.inimigos.length === 0 && e.vida === GF.dados.JOGADOR.vidaInicial, 'vitória com estado inconsistente');
+    afirmar(viuColosso && viuCoracao, 'chefes não apareceram');
+    var tick = e.tick;
+    rodar(e, 100);
+    afirmar(e.tick === tick, 'simulação continuou após a vitória');
+  });
+
+  teste('Derrota: sem guardiões o jogador perde (e nunca vence)', function () {
+    var e = GF.sim.criarEstado(5);
+    ate(e, function () { return false; });
+    afirmar(e.fase === 'derrota' && e.vida === 0, 'fase=' + e.fase);
+  });
+
+  teste('Colosso (onda 5): resiste a metade da lentidão e paga 60 de energia', function () {
+    var e = cenarioCombate({ 7: ['geada', 1] });
+    var col = inimigoEm(e, 'colosso', 300, 1e9);
+    ate(e, function () { return col.lentoTicks > 0; }, 200);
+    afirmar(perto(col.lentoFator, 0.15, 1e-9), 'lentidão=' + col.lentoFator + ' (esperado 0,15)');
+    var e2 = cenarioCombate({});
+    var c2 = inimigoEm(e2, 'colosso', 300, 10);
+    var en = e2.energia;
+    GF.sim.causarDano(e2, c2, 10);
+    afirmar(e2.energia - en === 60, 'recompensa=' + (e2.energia - en));
+  });
+
+  teste('Coração (onda 10): solta 2 Fragmentos a cada 4 s onde está, com a vida da onda', function () {
+    var e = cenarioCombate({});
+    var cor = GF.sim.criarInimigo(e, 'coracao', 3);
+    cor.dist = cor.distAnt = 400;
+    cor.vel = 0;
+    rodar(e, 239);
+    afirmar(e.inimigos.length === 1, 'invocou cedo: ' + e.inimigos.length);
+    GF.sim.passo(e);
+    var lacaios = e.inimigos.filter(function (i) { return i.tipo === 'comum'; });
+    afirmar(lacaios.length === 2, 'lacaios=' + lacaios.length);
+    afirmar(lacaios.every(function (l) { return Math.abs(l.dist - 400) <= 50 && perto(l.vidaMax, 300, 1e-9); }), 'lacaio fora do lugar ou com vida errada');
+    rodar(e, 240);
+    afirmar(e.inimigos.filter(function (i) { return i.tipo === 'comum'; }).length === 4, 'segunda leva não veio');
+  });
+
+  teste('Começo leve: robô que só invoca (sem fundir) não perde vida na onda 1 (20 sementes)', function () {
+    for (var s = 1; s <= 20; s++) {
+      var e = GF.sim.criarEstado(s);
+      while (e.ondas.atual < 2 && e.fase === 'jogando') {
+        while (GF.sim.podeInvocar(e)) GF.sim.invocar(e);
+        GF.sim.passo(e);
+      }
+      afirmar(e.vida === GF.dados.JOGADOR.vidaInicial, 'semente ' + s + ': vida ' + e.vida + ' após a onda 1');
+    }
   });
 
   // ---------- Resultado ----------

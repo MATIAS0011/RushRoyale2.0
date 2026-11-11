@@ -36,8 +36,19 @@
       projeteis: [],
       efeitos: [],              // só visuais (explosões, críticos); expiram sozinhos
       proximoId: 1,
-      demo: opcoes.semDemo ? null : { proximo: GF.dados.DEMO.primeiroTick }
+      // Controle das ondas. semOndas: cenários de teste sem inimigos automáticos.
+      ondas: opcoes.semOndas ? null : {
+        atual: 0,                 // 0 = ainda na preparação da 1ª onda
+        fase: 'preparo',          // 'preparo' (contagem) | 'ativa'
+        inicioTick: 0,            // tick em que a onda atual começou
+        proximaTick: segundosEmTicks(GF.dados.ONDAS[0].preparo),
+        pendentes: []             // surgimentos da onda atual: { tick, tipo }
+      }
     };
+  }
+
+  function segundosEmTicks(s) {
+    return Math.round(s * TICKS_POR_SEG);
   }
 
   function agendar(estado, acao) {
@@ -119,23 +130,45 @@
   }
 
   // ---------- Inimigos ----------
-  function criarInimigo(estado, tipo) {
+  // multVida: multiplicador de vida da onda (padrão 1).
+  function criarInimigo(estado, tipo, multVida) {
     var def = GF.dados.INIMIGOS[tipo];
+    var vida = def.vida * (multVida || 1);
     var ini = {
       id: estado.proximoId++,
       tipo: tipo,
+      chefe: !!def.chefe,
       dist: 0,          // distância percorrida no caminho
       distAnt: 0,       // distância no passo anterior (para interpolar o desenho)
-      vida: def.vida,
-      vidaMax: def.vida,
+      vida: vida,
+      vidaMax: vida,
+      multVida: multVida || 1,
       vel: def.vel,
       dano: def.dano,
       raio: def.raio,
       lentoFator: 0,    // fração de velocidade perdida (0,3 = 30% mais lento)
       lentoTicks: 0     // quanto tempo a lentidão ainda dura
     };
+    if (def.invoca) ini.recargaInvocar = def.invoca.intervaloTicks;
     estado.inimigos.push(ini);
     return ini;
+  }
+
+  // Chefes que invocam lacaios (Coração da Fenda): os lacaios surgem na posição
+  // do chefe, com o mesmo multiplicador de vida.
+  function habilidadesChefes(estado) {
+    var n = estado.inimigos.length; // lacaios criados agora só agem no próximo passo
+    for (var i = 0; i < n; i++) {
+      var ini = estado.inimigos[i];
+      var inv = GF.dados.INIMIGOS[ini.tipo].invoca;
+      if (!inv) continue;
+      if (--ini.recargaInvocar > 0) continue;
+      ini.recargaInvocar = inv.intervaloTicks;
+      for (var k = 0; k < inv.quantidade; k++) {
+        var l = criarInimigo(estado, inv.tipo, ini.multVida);
+        l.dist = l.distAnt = Math.max(0, ini.dist - 6 * k);
+      }
+    }
   }
 
   // Ponto único por onde todo dano passa (usado pelos guardiões na etapa 4).
@@ -175,12 +208,49 @@
     }
   }
 
-  function gerarDemo(estado) {
-    var d = estado.demo;
-    if (!d || estado.tick < d.proximo) return;
-    var tipos = GF.dados.DEMO.tipos;
-    criarInimigo(estado, tipos[GF.rng.inteiro(estado.rng, tipos.length)]);
-    d.proximo += GF.dados.DEMO.intervaloTicks;
+  // ---------- Ondas ----------
+  function iniciarOnda(estado) {
+    var o = estado.ondas;
+    o.atual++;
+    o.fase = 'ativa';
+    o.inicioTick = estado.tick;
+    var def = GF.dados.ONDAS[o.atual - 1];
+    var lista = [];
+    for (var g = 0; g < def.grupos.length; g++) {
+      var gr = def.grupos[g];
+      for (var k = 0; k < gr.n; k++) {
+        lista.push({ tick: estado.tick + segundosEmTicks(gr.atraso + k * gr.intervalo),
+                     tipo: gr.tipo, ordem: lista.length });
+      }
+    }
+    // Ordena por tick; empate mantém a ordem de definição (sort estável manual).
+    lista.sort(function (a, b) { return a.tick - b.tick || a.ordem - b.ordem; });
+    o.pendentes = lista;
+  }
+
+  // Começa ondas e faz os inimigos surgirem na hora certa.
+  function surgirInimigos(estado) {
+    var o = estado.ondas;
+    if (!o) return;
+    if (o.fase === 'preparo' && estado.tick >= o.proximaTick) iniciarOnda(estado);
+    if (o.fase !== 'ativa') return;
+    var mult = GF.dados.ONDAS[o.atual - 1].vida;
+    while (o.pendentes.length && o.pendentes[0].tick <= estado.tick) {
+      criarInimigo(estado, o.pendentes.shift().tipo, mult);
+    }
+  }
+
+  // Onda limpa (tudo surgiu e ninguém sobrou): vitória na última, senão preparo da próxima.
+  function verificarFimDeOnda(estado) {
+    var o = estado.ondas;
+    if (!o || o.fase !== 'ativa' || estado.fase !== 'jogando') return;
+    if (o.pendentes.length || estado.inimigos.length) return;
+    if (o.atual >= GF.dados.ONDAS.length) {
+      estado.fase = 'vitoria';
+      return;
+    }
+    o.fase = 'preparo';
+    o.proximaTick = estado.tick + segundosEmTicks(GF.dados.ONDAS[o.atual].preparo);
   }
 
   // ---------- Passo ----------
@@ -199,17 +269,21 @@
     // 2) Energia passiva
     ganharEnergiaPorTempo(estado);
 
-    // 3) Surgimento de inimigos
-    gerarDemo(estado);
+    // 3) Ondas: surgimento de inimigos e habilidades dos chefes
+    surgirInimigos(estado);
+    habilidadesChefes(estado);
 
     // 4) Guardiões atacam; projéteis voam e acertam
     GF.combate.atualizarGuardioes(estado);
     GF.combate.atualizarProjeteis(estado);
 
-    // 5) Movimento e escapes
+    // 5) Movimento e escapes (pode dar derrota)
     moverInimigos(estado);
 
-    // 6) Efeitos visuais vencidos
+    // 6) Fim de onda / vitória (a derrota no mesmo passo tem prioridade)
+    verificarFimDeOnda(estado);
+
+    // 7) Efeitos visuais vencidos
     GF.combate.limparEfeitos(estado);
 
     estado.tick++;
@@ -226,6 +300,7 @@
       fusoes: estado.fusoes,
       energia: estado.energia,
       custoInvocar: estado.custoInvocar,
+      ondas: estado.ondas,
       tabuleiro: estado.tabuleiro,
       inimigos: estado.inimigos,
       projeteis: estado.projeteis
