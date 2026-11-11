@@ -13,15 +13,23 @@
   var LARGURA = 360;
   var ALTURA = 640;
 
-  function criarEstado(semente) {
+  function criarEstado(semente, opcoes) {
+    opcoes = opcoes || {};
+    var tabuleiro = [];
+    for (var i = 0; i < GF.layout.CASAS; i++) tabuleiro.push(null);
+
     return {
       semente: semente,
       tick: 0,
+      fase: 'jogando',          // 'jogando' | 'derrota' | 'vitoria'
       rng: GF.rng.criar(semente),
-      fila: [],       // ações aguardando o próximo passo
-      registro: [],   // ações já aplicadas: { tick, acao }
-      // Conteúdo provisório da etapa 1 (será substituído pelo jogo real):
-      faiscas: []
+      fila: [],                 // ações aguardando o próximo passo
+      registro: [],             // ações já aplicadas: { tick, acao }
+      vida: GF.dados.JOGADOR.vidaInicial,
+      tabuleiro: tabuleiro,     // 15 casas; null = livre
+      inimigos: [],
+      proximoId: 1,
+      demo: opcoes.semDemo ? null : { proximo: GF.dados.DEMO.primeiroTick }
     };
   }
 
@@ -30,23 +38,58 @@
   }
 
   function aplicarAcao(estado, acao) {
-    if (acao.tipo === 'pulso') {
-      for (var i = 0; i < 8; i++) criarFaisca(estado, acao.x, acao.y);
+    // Etapa 2 ainda não tem ações do jogador (invocar vem na etapa 3).
+    // Tipos desconhecidos são ignorados, mas registrados.
+  }
+
+  // ---------- Inimigos ----------
+  function criarInimigo(estado, tipo) {
+    var def = GF.dados.INIMIGOS[tipo];
+    var ini = {
+      id: estado.proximoId++,
+      tipo: tipo,
+      dist: 0,          // distância percorrida no caminho
+      distAnt: 0,       // distância no passo anterior (para interpolar o desenho)
+      vida: def.vida,
+      vidaMax: def.vida,
+      vel: def.vel,
+      dano: def.dano,
+      raio: def.raio
+    };
+    estado.inimigos.push(ini);
+    return ini;
+  }
+
+  function moverInimigos(estado) {
+    var fim = GF.layout.COMPRIMENTO;
+    for (var i = estado.inimigos.length - 1; i >= 0; i--) {
+      var ini = estado.inimigos[i];
+      ini.distAnt = ini.dist;
+      ini.dist += ini.vel * DT;
+      if (ini.dist >= fim) {
+        estado.inimigos.splice(i, 1);
+        estado.vida -= ini.dano;
+      }
+    }
+    if (estado.vida <= 0) {
+      estado.vida = 0;
+      estado.fase = 'derrota';
     }
   }
 
-  function criarFaisca(estado, x, y) {
-    var ang = GF.rng.proximo(estado.rng) * Math.PI * 2;
-    var vel = 40 + GF.rng.proximo(estado.rng) * 60; // px/s
-    estado.faiscas.push({
-      x: x, y: y,
-      vx: Math.cos(ang) * vel,
-      vy: Math.sin(ang) * vel,
-      vida: 1.5 // segundos
-    });
+  function gerarDemo(estado) {
+    var d = estado.demo;
+    if (!d || estado.tick < d.proximo) return;
+    var tipos = GF.dados.DEMO.tipos;
+    criarInimigo(estado, tipos[GF.rng.inteiro(estado.rng, tipos.length)]);
+    d.proximo += GF.dados.DEMO.intervaloTicks;
   }
 
+  // ---------- Passo ----------
   function passo(estado) {
+    // Partida encerrada: o mundo congela.
+    if (estado.fase !== 'jogando') return;
+
     // 1) Ações do jogador
     for (var i = 0; i < estado.fila.length; i++) {
       var acao = estado.fila[i];
@@ -55,17 +98,11 @@
     }
     estado.fila.length = 0;
 
-    // 2) Demo: a fenda solta uma faísca a cada meio segundo
-    if (estado.tick % 30 === 0) criarFaisca(estado, LARGURA / 2, ALTURA * 0.42);
+    // 2) Surgimento de inimigos
+    gerarDemo(estado);
 
-    // 3) Movimento
-    for (var j = estado.faiscas.length - 1; j >= 0; j--) {
-      var f = estado.faiscas[j];
-      f.x += f.vx * DT;
-      f.y += f.vy * DT;
-      f.vida -= DT;
-      if (f.vida <= 0) estado.faiscas.splice(j, 1);
-    }
+    // 3) Movimento e escapes
+    moverInimigos(estado);
 
     estado.tick++;
   }
@@ -74,8 +111,11 @@
   function resumo(estado) {
     return JSON.stringify({
       tick: estado.tick,
+      fase: estado.fase,
       rng: estado.rng.s,
-      faiscas: estado.faiscas
+      vida: estado.vida,
+      tabuleiro: estado.tabuleiro,
+      inimigos: estado.inimigos
     });
   }
 
@@ -87,6 +127,7 @@
     criarEstado: criarEstado,
     agendar: agendar,
     passo: passo,
+    criarInimigo: criarInimigo,
     resumo: resumo
   };
 })(window.GF = window.GF || {});

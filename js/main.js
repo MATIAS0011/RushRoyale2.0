@@ -12,6 +12,13 @@
   var estado = GF.sim.criarEstado(semente);
   var laco = GF.loop.criar();
 
+  function recomecar() {
+    semente = (semente * 7919 + 12345) % 1000000000; // próxima semente, também reproduzível
+    estado = GF.sim.criarEstado(semente);
+    laco.acumulador = 0;
+    GF.jogo.estado = estado;
+  }
+
   GF.render.ajustar(canvas);
   window.addEventListener('resize', function () { GF.render.ajustar(canvas); });
 
@@ -23,7 +30,10 @@
       laco.velocidade = laco.velocidade === 1 ? 2 : 1;
       return;
     }
-    GF.sim.agendar(estado, { tipo: 'pulso', x: p.x, y: p.y });
+    if (estado.fase !== 'jogando') {
+      recomecar();
+      return;
+    }
   });
   canvas.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
 

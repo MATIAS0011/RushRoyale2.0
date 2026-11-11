@@ -21,6 +21,19 @@ Jogo de navegador de defesa com cartas que se fundem. Nome, personagens e visual
 - **10 ondas**, com chefe nas ondas 5 e 10. O jogador tem vida. Cada inimigo que chega ao fim do caminho tira vida.
 - **Vitória:** sobreviver à onda 10. **Derrota:** a vida chega a 0.
 
+### Jogador e caminho
+- **Vida inicial: 20.** Cada inimigo que chega ao fim tira o seu `dano`. A vida nunca fica negativa.
+- **Caminho em U, com 940 px:** entra embaixo à esquerda (a fenda), sobe, cruza por cima do tabuleiro e desce até a saída embaixo à direita (o cristal).
+
+### Inimigos (em `js/dados.js`)
+| Tipo | Nome | Vida | Velocidade | Dano ao escapar | Tempo para cruzar |
+|---|---|---|---|---|---|
+| comum | Fragmento (bolha roxa com olho) | 100 | 45 px/s | 1 | ~21 s |
+| rapido | Faísca (gota azul) | 60 | 75 px/s | 1 | ~12,5 s |
+| tanque | Rocha-oca (octógono marrom) | 300 | 30 px/s | 2 | ~31 s |
+
+Os inimigos não se bloqueiam: os rápidos ultrapassam os lentos.
+
 ### Os 5 guardiões
 
 | Guardião | Papel | Visual |
@@ -66,6 +79,26 @@ Mouse e toque usam o mesmo código (`pointerdown`/`pointermove`/`pointerup`). O 
 ### D8. Testes no navegador, sem Node
 A máquina de desenvolvimento não tem Node. Os testes rodam numa página (`testes.html` + `testes/testes.js`) que carrega só a lógica. Ela abre com dois cliques ou no Edge headless (`--dump-dom`). O teste de determinismo roda a mesma partida (semente e ações iguais) pelo laço real a 20, 30, 60 e 144 FPS, com FPS irregular e em 2x, e exige estado final idêntico ao da execução passo a passo.
 
+### D9. Layout fixo do mundo lógico (`js/layout.js`)
+- **HUD** no topo (y < 90).
+- **Caminho:** pontos (20,440) → (20,130) → (340,130) → (340,440), 32 px de largura.
+- **Tabuleiro:** casas de 56 px a partir de (40,160), indo até (320,328). As casas são numeradas de 0 a 14, linha a linha, da esquerda para a direita.
+- **Abaixo de y≈470:** espaço reservado para Invocar, energia e velocidade.
+
+A simulação e o toque usam a mesma geometria (`GF.layout.casa`, `casaEm`, `posicao`).
+
+### D10. Inimigos guardam só a distância percorrida
+A posição na tela é calculada a partir da distância (`GF.layout.posicao(dist)`). Isso facilita escolher o alvo (mais à frente = maior `dist`) e aplicar lentidão (basta mudar a velocidade).
+
+### D11. O desenho interpola entre passos
+Cada inimigo guarda `distAnt` (a distância no passo anterior). O desenho mistura `distAnt` e `dist` pela fração do acumulador (`GF.loop.alfa`). O movimento fica suave em telas de 90/120/144 Hz, sem mexer na simulação.
+
+### D12. Fim de partida congela a simulação
+Com `fase` diferente de `'jogando'`, `passo()` não faz nada (nem avança o tick). Na tela, um toque recomeça a partida com a próxima semente, que é derivada da anterior e por isso também pode ser reproduzida. A tela completa de vitória e derrota vem na etapa 6.
+
+### D13. Fluxo de demonstração (provisório)
+Até as ondas existirem (etapa 6), surge um inimigo a cada 1,2 s, com tipo sorteado pelo RNG (comum tem chance dobrada). Os testes usam `criarEstado(semente, { semDemo: true })` para cenários controlados.
+
 ---
 
 ## Histórico das etapas
@@ -74,3 +107,9 @@ A máquina de desenvolvimento não tem Node. Os testes rodam numa página (`test
 - Estrutura de arquivos, laço de passo fixo, RNG com semente, canvas responsivo em retrato e botão 1x/2x.
 - Conteúdo provisório: uma "fenda" que solta faíscas sorteadas pelo RNG, e o toque solta mais faíscas (serve para validar a entrada → fila → simulação). Sai na etapa 2.
 - Testes: 12 automáticos (RNG, determinismo em 6 cenários de FPS/velocidade, limite de salto de tempo, pausa).
+
+### Etapa 2: tabuleiro, caminho, inimigos e vida ✅
+- `dados.js` (balanceamento) e `layout.js` (geometria) separados da lógica.
+- Caminho em U com fenda de entrada e cristal de saída, tabuleiro 5×3, 3 tipos de inimigo, vida do jogador e derrota com toque para recomeçar.
+- A demo de faíscas da etapa 1 foi removida.
+- Testes: 20 automáticos. O determinismo agora cobre uma partida inteira até a derrota.
