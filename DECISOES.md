@@ -74,6 +74,26 @@ Cada carta mostra a forma do guardião sobre um fundo escuro da mesma cor. O **n
 
 ---
 
+## Pendências de balanceamento
+
+> Os números **não** foram alterados por causa disto. Revisão prevista para as etapas 6 (ondas de verdade) e 7 (balanceamento).
+
+**QA após a etapa 4:** 50 partidas automáticas, com um robô que invoca sempre que pode, o fluxo de demonstração (D13) e limite de 10 min por partida.
+
+| Baralho | Sobreviveu aos 10 min |
+|---|---|
+| Só Lança | 10/10 |
+| Só Brasa | 7/10 |
+| Baralho normal (os 5 guardiões) | 4/10 |
+| Só Sorte | 1/10 |
+| Só Geada | 0/10 (morre em ~48 s) |
+
+**Conclusões**
+- **A Lança domina em dano por segundo.** Precisa ser comparada com Sorte e Brasa e reequilibrada.
+- **O começo da partida é apertado demais.** As derrotas acontecem entre 45 e 76 s, com só 4 ou 5 cartas no tabuleiro. Isso se liga à D22: um começo sem guardiões de dano perde.
+
+---
+
 ## Decisões técnicas
 
 ### D1. JavaScript puro, scripts clássicos e um namespace global
