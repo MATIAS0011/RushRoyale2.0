@@ -1,0 +1,26 @@
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #0b0912;
+  overflow: hidden;
+  /* Sem zoom, rolagem ou seleção acidental ao arrastar no celular. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#tela {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: block;
+  touch-action: none;
+  /* Maior retângulo 9:16 que cabe na tela. dvh acompanha a barra do navegador móvel. */
+  width: min(100vw, calc(100vh * 9 / 16));
+  height: min(100vh, calc(100vw * 16 / 9));
+  width: min(100vw, calc(100dvh * 9 / 16));
+  height: min(100dvh, calc(100vw * 16 / 9));
+}
