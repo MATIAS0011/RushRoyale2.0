@@ -42,7 +42,7 @@ Os inimigos não se bloqueiam: os rápidos ultrapassam os lentos.
 | Geada | deixa o alvo mais lento | hexágono azul-claro |
 | Brasa | dano em área | círculo vermelho |
 | Tambor | buff de velocidade de ataque nos vizinhos | quadrado verde |
-| Sorte | chance alta de crítico | losango **dourado** (era roxo no plano; mudou para não confundir com a fenda e os inimigos roxos) |
+| Sorte | chance alta de crítico | losango amarelo |
 
 Cada carta mostra a forma do guardião sobre um fundo escuro da mesma cor. O **nível** aparece em pontinhos brancos na base (1 a 7).
 
@@ -114,6 +114,9 @@ A interface usa `GF.sim.podeInvocar` só para desenhar o botão e decidir se tre
 
 ### D15. Ordem dos sorteios na invocação
 Primeiro a casa (entre as livres, em ordem crescente de índice), depois o tipo. Mudar essa ordem muda as partidas geradas por uma mesma semente, então qualquer mudança aqui precisa ser registrada.
+
+### D17. A Sorte é amarela
+O plano inicial previa a Sorte em roxo. No jogo ela é amarela (`#ffd34d`), para não se confundir com a fenda e os inimigos, que são roxos. As cores de todos os guardiões ficam em `CORES.guardiao`, no `js/render.js`.
 
 ### D16. Todo dano passa por `GF.sim.causarDano`
 Essa função tira vida, remove o inimigo morto e paga a energia uma única vez (um inimigo já morto ignora dano extra no mesmo passo). As etapas de combate usam só ela.
