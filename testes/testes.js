@@ -103,9 +103,9 @@
   });
 
   // ---------- Determinismo ----------
-  // Semente 11 com este roteiro: os 5 tipos de guardião lutam, passa do chefe da onda 5,
+  // Semente 8 com este roteiro: os 5 tipos de guardião lutam, passa do chefe da onda 5,
   // chega à onda 8 e termina em derrota. Se o balanceamento mudar, confira o 1º teste abaixo.
-  var SEMENTE = 11;
+  var SEMENTE = 8;
   var TICKS = 60 * 900; // até 15 min de jogo (com este roteiro a partida termina antes, em derrota)
   // Invocações reais. A do tick 334 acontece sem energia suficiente e precisa
   // ser recusada do mesmo jeito em todas as execuções.
@@ -576,11 +576,39 @@
     afirmar(e.fusoes === 1 && e.efeitos.some(function (x) { return x.tipo === 'fusao'; }), 'sem contagem/efeito');
   });
 
-  teste('Fusão: não gasta energia nem muda o custo de invocar', function () {
-    var e = tabuleiroCom({ 0: ['brasa', 3], 1: ['brasa', 3] });
-    var en = e.energia, custo = e.custoInvocar;
-    afirmar(GF.sim.fundir(e, 0, 1).nivel === 4, 'nível errado');
-    afirmar(e.energia === en && e.custoInvocar === custo, 'energia/custo mudaram');
+  teste('Fusão: não gasta energia e barateia a próxima invocação (libera uma casa)', function () {
+    var e = GF.sim.criarEstado(1, { semOndas: true });
+    e.energia = 1e6;
+    for (var i = 0; i < 6; i++) GF.sim.invocar(e);
+    afirmar(e.custoInvocar === EN.custoInicial + 6 * EN.aumentoCusto, 'custo com 6 cartas=' + e.custoInvocar);
+    var e2 = tabuleiroCom({ 0: ['brasa', 3], 1: ['brasa', 3], 2: ['lanca', 1] });
+    var en = e2.energia;
+    afirmar(e2.custoInvocar === EN.custoInicial, 'cenário montado à mão começa no custo inicial');
+    GF.sim.fundir(e2, 0, 1);
+    afirmar(e2.energia === en, 'fusão gastou energia');
+    afirmar(e2.custoInvocar === EN.custoInicial + 2 * EN.aumentoCusto, 'custo após fundir (2 cartas)=' + e2.custoInvocar);
+  });
+
+  teste('Custo de invocar = 20 + 10 × cartas no tabuleiro (sobe ao invocar, cai ao fundir)', function () {
+    var e = GF.sim.criarEstado(21, { semOndas: true });
+    e.energia = 1e6;
+    var custos = [];
+    for (var i = 0; i < 15; i++) {
+      var ocupadas = 15 - GF.sim.casasLivres(e).length;
+      afirmar(e.custoInvocar === EN.custoInicial + EN.aumentoCusto * ocupadas, 'custo ' + e.custoInvocar + ' com ' + ocupadas + ' cartas');
+      custos.push(e.custoInvocar);
+      GF.sim.invocar(e);
+    }
+    afirmar(custos[0] === 20 && custos[14] === 160, 'faixa de custos ' + custos[0] + '..' + custos[14]);
+    // Funde todos os pares possíveis: cada fusão baixa o custo em 10
+    var antes = e.custoInvocar, fusoes = 0, achou = true;
+    while (achou) {
+      achou = false;
+      for (var de = 0; de < 15 && !achou; de++) for (var pa = 0; pa < 15 && !achou; pa++) {
+        if (GF.sim.podeFundir(e, de, pa)) { GF.sim.fundir(e, de, pa); fusoes++; achou = true; }
+      }
+    }
+    afirmar(fusoes > 0 && e.custoInvocar === antes - fusoes * EN.aumentoCusto, fusoes + ' fusões: custo ' + antes + ' → ' + e.custoInvocar);
   });
 
   teste('Fusão inválida não muda nada (nem o RNG): tipo, nível, casa, ids, nível máximo, fim de jogo', function () {

@@ -10,8 +10,8 @@
     ENERGIA: {
       inicial: 60,
       ticksPorPonto: 30,     // +1 de energia a cada 0,5 s (= 2/s)
-      custoInicial: 20,      // custo da 1ª invocação
-      aumentoCusto: 10       // cada invocação encarece as próximas em 10
+      custoInicial: 20,      // custo com o tabuleiro vazio
+      aumentoCusto: 10       // +10 por carta no tabuleiro (fundir barateia; ver D31)
     },
 
     // Os 5 guardiões. Alcance: o caminho inteiro.
@@ -66,29 +66,29 @@
       { preparo: 6, vida: 1.1, grupos: [
         { tipo: 'comum', n: 10, intervalo: 1.5, atraso: 0 },
         { tipo: 'tanque', n: 3, intervalo: 3, atraso: 5 } ] },
-      { preparo: 6, vida: 1.4, grupos: [
+      { preparo: 6, vida: 1.5, grupos: [
         { tipo: 'rapido', n: 8, intervalo: 1, atraso: 0 },
         { tipo: 'comum', n: 10, intervalo: 1.2, atraso: 4 },
         { tipo: 'tanque', n: 4, intervalo: 2.5, atraso: 8 } ] },
-      { preparo: 8, vida: 1.8, chefe: true, grupos: [
+      { preparo: 8, vida: 2, chefe: true, grupos: [
         { tipo: 'comum', n: 8, intervalo: 1, atraso: 0 },
         { tipo: 'colosso', n: 1, intervalo: 0, atraso: 6 } ] },
-      { preparo: 6, vida: 2.2, grupos: [
+      { preparo: 6, vida: 2.7, grupos: [
         { tipo: 'comum', n: 12, intervalo: 1, atraso: 0 },
         { tipo: 'rapido', n: 8, intervalo: 0.8, atraso: 6 },
         { tipo: 'tanque', n: 5, intervalo: 2, atraso: 10 } ] },
-      { preparo: 6, vida: 2.6, grupos: [
+      { preparo: 6, vida: 3.4, grupos: [
         { tipo: 'tanque', n: 8, intervalo: 1.5, atraso: 0 },
         { tipo: 'rapido', n: 12, intervalo: 0.7, atraso: 4 } ] },
-      { preparo: 6, vida: 3.1, grupos: [
+      { preparo: 6, vida: 4.2, grupos: [
         { tipo: 'comum', n: 16, intervalo: 0.8, atraso: 0 },
         { tipo: 'tanque', n: 8, intervalo: 1.5, atraso: 5 },
         { tipo: 'rapido', n: 10, intervalo: 0.6, atraso: 12 } ] },
-      { preparo: 6, vida: 3.6, grupos: [
+      { preparo: 6, vida: 5, grupos: [
         { tipo: 'rapido', n: 16, intervalo: 0.5, atraso: 0 },
         { tipo: 'tanque', n: 10, intervalo: 1.2, atraso: 4 },
         { tipo: 'comum', n: 16, intervalo: 0.6, atraso: 10 } ] },
-      { preparo: 8, vida: 4.2, chefe: true, grupos: [
+      { preparo: 8, vida: 6, chefe: true, grupos: [
         { tipo: 'tanque', n: 6, intervalo: 1.5, atraso: 0 },
         { tipo: 'coracao', n: 1, intervalo: 0, atraso: 8 } ] }
     ]

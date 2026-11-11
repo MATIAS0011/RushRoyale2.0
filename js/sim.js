@@ -84,6 +84,7 @@
     var novo = criarGuardiao(estado, tipo, nivel);
     estado.tabuleiro[para] = novo;
     estado.fusoes++;
+    atualizarCusto(estado);
     var c = GF.layout.casa(para);
     estado.efeitos.push({ tipo: 'fusao', x: c.cx, y: c.cy, tick: estado.tick, cor: tipo });
     return novo;
@@ -114,9 +115,17 @@
 
     estado.energia -= estado.custoInvocar;
     estado.invocacoes++;
-    estado.custoInvocar += GF.dados.ENERGIA.aumentoCusto;
     estado.tabuleiro[casa] = criarGuardiao(estado, tipo, 1);
+    atualizarCusto(estado);
     return casa;
+  }
+
+  // Custo da próxima invocação = custoInicial + aumentoCusto × cartas no tabuleiro.
+  // Invocar encarece; fundir (libera uma casa) barateia. Ver D31.
+  function atualizarCusto(estado) {
+    var E = GF.dados.ENERGIA;
+    var ocupadas = GF.layout.CASAS - casasLivres(estado).length;
+    estado.custoInvocar = E.custoInicial + E.aumentoCusto * ocupadas;
   }
 
   // recarga 0 = pronto para atacar assim que houver alvo.

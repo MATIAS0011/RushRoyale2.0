@@ -8,6 +8,7 @@ Jogo de navegador de defesa com cartas que se fundem. Nome, personagens e visual
 - **Testes:** abrir `testes.html` com dois cliques, ou pelo terminal:
   `msedge --headless --dump-dom file:///C:/jogos/RushRoyale2.0/testes.html`
 - **Reproduzir uma partida:** `index.html?semente=123`.
+- **Linha de depuração** (tick, FPS, inimigos, semente): `index.html?debug=1`. Dá para combinar: `?semente=123&debug=1`.
 
 ---
 
@@ -31,19 +32,19 @@ Jogo de navegador de defesa com cartas que se fundem. Nome, personagens e visual
 | 1 | ×0,4 | 6 Fragmentos, um a cada 3,5 s | 6 |
 | 2 | ×0,8 | 8 Fragmentos + 4 Faíscas | 12 |
 | 3 | ×1,1 | 10 Fragmentos + 3 Rochas-ocas | 13 |
-| 4 | ×1,4 | 8 Faíscas + 10 Fragmentos + 4 Rochas-ocas | 22 |
-| **5** | ×1,8 | 8 Fragmentos + **Colosso da Fenda** | 9 |
-| 6 | ×2,2 | 12 Fragmentos + 8 Faíscas + 5 Rochas-ocas | 25 |
-| 7 | ×2,6 | 8 Rochas-ocas + 12 Faíscas | 20 |
-| 8 | ×3,1 | 16 Fragmentos + 8 Rochas-ocas + 10 Faíscas | 34 |
-| 9 | ×3,6 | 16 Faíscas + 10 Rochas-ocas + 16 Fragmentos | 42 |
-| **10** | ×4,2 | 6 Rochas-ocas + **Coração da Fenda** (+ lacaios) | 7+ |
+| 4 | ×1,5 | 8 Faíscas + 10 Fragmentos + 4 Rochas-ocas | 22 |
+| **5** | ×2 | 8 Fragmentos + **Colosso da Fenda** | 9 |
+| 6 | ×2,7 | 12 Fragmentos + 8 Faíscas + 5 Rochas-ocas | 25 |
+| 7 | ×3,4 | 8 Rochas-ocas + 12 Faíscas | 20 |
+| 8 | ×4,2 | 16 Fragmentos + 8 Rochas-ocas + 10 Faíscas | 34 |
+| 9 | ×5 | 16 Faíscas + 10 Rochas-ocas + 16 Fragmentos | 42 |
+| **10** | ×6 | 6 Rochas-ocas + **Coração da Fenda** (+ lacaios) | 7+ |
 
 ### Chefes
 | Chefe | Onda | Vida base (na onda) | Velocidade | Dano ao escapar | Energia | Habilidade |
 |---|---|---|---|---|---|---|
-| Colosso da Fenda (rocha espinhosa com rachadura) | 5 | 2500 (4500) | 22 px/s | 10 | 60 | resiste a metade da lentidão |
-| Coração da Fenda (cristal-coração pulsante) | 10 | 3000 (12 600) | 18 px/s | 20 (derrota na hora) | 100 | a cada 4 s solta 2 Fragmentos onde está, com a vida da onda |
+| Colosso da Fenda (rocha espinhosa com rachadura) | 5 | 2500 (5000) | 22 px/s | 10 | 60 | resiste a metade da lentidão |
+| Coração da Fenda (cristal-coração pulsante) | 10 | 3000 (18 000) | 18 px/s | 20 (derrota na hora) | 100 | a cada 4 s solta 2 Fragmentos onde está, com a vida da onda |
 
 Enquanto um chefe está vivo, uma barra de vida com o nome dele aparece no topo.
 
@@ -80,7 +81,7 @@ Cada carta mostra a forma do guardião sobre um fundo escuro da mesma cor. O **n
 - A partida começa com **60 de energia**. A energia é sempre um número inteiro.
 - **Energia passiva:** +1 a cada 0,5 s (120 por minuto).
 - **Abates:** Fragmento +5, Faísca +4, Rocha-oca +10. Dano parcial não dá nada.
-- **Custo da invocação:** começa em **20** e sobe **+10 a cada invocação** (20, 30, 40…). Preencher as 15 casas custa 1350 no total. O custo só sobe ao invocar, nunca ao fundir.
+- **Custo da invocação = 20 + 10 × cartas no tabuleiro** (de 20 com o tabuleiro vazio a 160 com 14 cartas). Invocar encarece a próxima invocação em 10, e **fundir barateia em 10**, porque libera uma casa (ver D31).
 - **Invocar:** escolhe uma casa livre ao acaso e um dos 5 guardiões ao acaso (chances iguais), sempre de nível 1.
 - **Não dá para invocar** sem energia suficiente, com o tabuleiro cheio ou com a partida encerrada. Nesses casos nada é gasto, e o botão aparece apagado (com "Cheio" quando o tabuleiro está lotado) e treme se for tocado.
 
@@ -88,7 +89,7 @@ Cada carta mostra a forma do guardião sobre um fundo escuro da mesma cor. O **n
 - **Como fundir:** arraste uma carta (toque ou mouse) e solte sobre outra **do mesmo tipo e do mesmo nível**.
 - **Resultado:** a carta arrastada some. Na casa de destino nasce um guardião **de nível +1, com tipo sorteado** entre os 5 (chances iguais, inclusive o tipo original), pronto para atacar.
 - **Nível máximo: 7.** Dois guardiões de nível 7 não se fundem.
-- A fusão **não gasta energia** e **não muda o custo de invocar**.
+- A fusão **não gasta energia** e **barateia a próxima invocação em 10** (uma carta a menos no tabuleiro).
 - **Soltar em lugar inválido** (carta diferente, casa vazia, fora do tabuleiro) faz a carta voltar para o lugar, sem nenhum efeito.
 - **Durante o arraste:** a carta de origem fica apagada, todas as cartas compatíveis brilham e a que está sob a carta arrastada brilha mais forte. Ao fundir, um anel e faíscas na cor do novo guardião.
 
@@ -137,6 +138,8 @@ Cada carta mostra a forma do guardião sobre um fundo escuro da mesma cor. O **n
 
 **QA da etapa 6** (ondas de verdade, sementes 1 a 40): fundindo sempre 17/40, sem fundir 0/40, e ninguém que só invoca perde vida na onda 1 (ver D28 e D29). Ainda pendente: o robô que funde sempre perdeu vida na onda 1 em 2/40 partidas. Nos dois casos ele fundiu as **duas únicas cartas de dano** que tinha e o sorteio deu um Tambor de nível 2, que não ataca. Um humano dificilmente faz isso, mas é o mesmo risco do Tambor descrito abaixo.
 
+**QA externo da etapa 6:** 180 partidas completas. Baralho normal sem fundir 0/30, fundindo 9/30, com derrotas concentradas nas ondas 9 e 10. O começo leve foi aprovado. Uma partida completa num celular 390×844 rodou sem erros. **Problema apontado:** o custo de invocar só subia. Na onda 5 havia 6 casas vazias e invocar custava 120. **Resolvido na etapa 7 (D31).**
+
 **O Tambor não escala com o nível.** O dano multiplicativo não o afeta, porque ele não causa dano. Testei o buff por nível em +10%, +20% e +30% e não houve diferença mensurável (24, 23 e 23 de 40 vitórias fundindo), então ele ficou em +10%. Rever na etapa 7: fundir e sortear um Tambor ainda pode enfraquecer o tabuleiro.
 
 ---
@@ -166,7 +169,7 @@ O gerador é o mulberry32 (`js/rng.js`). Seu estado (`{ s }`) fica **dentro** do
 A entrada nunca altera o estado diretamente. Ela chama `GF.sim.agendar(estado, acao)`, e a ação é aplicada no início do próximo passo e guardada em `estado.registro` com o número do tick. Isso permite replay e testes de determinismo com ações. A velocidade (1x/2x) **não** é uma ação da simulação: só muda quanto tempo real vira passos.
 
 ### D6. Mundo lógico de 360 × 640 (retrato 9:16), escalado para a tela
-Toda a lógica e o desenho usam coordenadas lógicas. O CSS dimensiona o canvas como o maior 9:16 que cabe (`min(100vw, 100dvh·9/16)`). O `dvh` acompanha a barra do navegador móvel. O JS lê o tamanho real do elemento e ajusta a resolução interna pelo `devicePixelRatio`, para ficar nítido. Em celulares mais compridos que 9:16 sobram faixas escuras em cima e embaixo. **Pendência:** isso será resolvido na etapa 7 (polimento).
+Toda a lógica e o desenho usam coordenadas lógicas. O CSS dimensiona o canvas como o maior 9:16 que cabe (`min(100vw, 100dvh·9/16)`). O `dvh` acompanha a barra do navegador móvel. O JS lê o tamanho real do elemento e ajusta a resolução interna pelo `devicePixelRatio`, para ficar nítido. Em celulares mais compridos que 9:16 sobravam faixas escuras. **Resolvido na etapa 7 (D32).**
 
 ### D7. Entrada por Pointer Events
 Mouse e toque usam o mesmo código (`pointerdown`/`pointermove`/`pointerup`). O CSS desliga zoom, rolagem, seleção e menu de toque longo (`touch-action: none` e outros).
@@ -218,8 +221,8 @@ Os projéteis dão leitura visual de quem atira em quem, e o tempo de voo faz pa
 ### D21. Efeitos visuais ficam no estado da simulação
 Explosões, faíscas de acerto e números de crítico entram em `estado.efeitos` com o tick de criação e expiram depois de 30 ticks. Assim o desenho continua só lendo o estado. Os efeitos não entram no `resumo` dos testes.
 
-### D22. Partida de referência dos testes de determinismo (semente 11 desde a etapa 6)
-Com o roteiro de invocações e fusões, a partida de referência precisa ter os 5 tipos lutando, combate, fusões e terminar em derrota. Desde a etapa 6 ela também precisa passar do chefe da onda 5. A semente 7 cumpria isso no fluxo de demonstração. Com as ondas ela deixou de sortear a Sorte, então a referência passou a ser a semente 11 (chega à onda 8, com 110 abates). Observação de balanceamento: algumas sementes (como a 12345) sorteiam só Tambores e Geada no começo e perdem sem abater ninguém. Isso deve ser considerado nas ondas da etapa 6 e no balanceamento da etapa 7.
+### D22. Partida de referência dos testes de determinismo (semente 8 desde a etapa 7)
+Com o roteiro de invocações e fusões, a partida de referência precisa ter os 5 tipos lutando, combate, fusões e terminar em derrota. Desde a etapa 6 ela também precisa passar do chefe da onda 5. A semente 7 cumpria isso no fluxo de demonstração. Com as ondas ela deixou de sortear a Sorte, então a referência passou a ser a semente 11 (chega à onda 8, com 110 abates). Na etapa 7, o novo custo de invocar e a nova curva mudaram as partidas, e a referência passou a ser a semente 8 (onda 8, 114 abates). Observação de balanceamento: algumas sementes (como a 12345) sorteiam só Tambores e Geada no começo e perdem sem abater ninguém. Isso deve ser considerado nas ondas da etapa 6 e no balanceamento da etapa 7.
 
 ### D23. A ação de fundir leva casas e ids
 A ação é `{ tipo: 'fundir', de, para, idDe, idPara }`. A simulação só funde se as duas casas ainda tiverem exatamente as cartas que o jogador arrastou. Isso evita fundir a carta errada quando o tabuleiro muda entre o gesto e o passo (por exemplo, duas fusões com a mesma carta no mesmo passo: só a primeira vale). Uma fusão recusada não muda nada, nem o RNG.
@@ -268,6 +271,18 @@ Curvas testadas (40 sementes cada, robô fundindo × sem fundir):
 
 Com a curva escolhida, quem funde vence ~40% (a maioria das derrotas é contra o **chefe final**) e quem não funde perde sempre, em geral na onda 9. A fusão é necessária, e o final é um desafio. Um jogador humano escolhe melhor o que fundir do que o robô, então deve vencer com mais frequência.
 
+**Recalibração na etapa 7** (por causa da D31): com o custo pelas cartas no tabuleiro, a curva 0,4 → 4,2 deixou quem funde com 34/40. Curvas testadas com a regra nova (40 sementes):
+
+| Multiplicador de vida da onda 1 → 10 | Fundindo | Sem fundir |
+|---|---|---|
+| 0,4 → 4,2 (da etapa 6) | 34/40 | 0/40 |
+| 0,4 → 4,8 | 35/40 | 0/40 |
+| 0,4 → 5,3 | 28/40 | 0/40 |
+| **0,4 → 6 (escolhida)** | **23/40 (57%)** | **0/40** |
+| 0,4 → 6,8 | 14/40 | 0/40 |
+
+Com a curva escolhida, as derrotas de quem funde se concentram na onda 10 (10 de 17). O QA externo mediu um robô que vence menos que o nosso (9/30 contra 17/40 na etapa 6), então ~57% aqui deve corresponder a ~40% lá.
+
 ### D29. Começo leve (onda 1)
 O QA apontou derrotas aos 42–56 s com o fluxo de demonstração. Agora:
 - a onda 1 só começa após **10 s** de preparação;
@@ -277,6 +292,28 @@ Com os 60 de energia iniciais, dá para invocar 2 guardiões antes da primeira o
 
 ### D30. Reinício só pelo botão
 Antes, um toque em qualquer lugar da tela de fim reiniciava a partida, o que podia acontecer sem querer no último toque da partida. Agora só o botão "Jogar de novo" reinicia.
+
+### D31. Custo de invocar pelas cartas no tabuleiro (não mais acumulado)
+**Problema (QA da etapa 6):** o custo subia +10 a cada invocação, para sempre. Como fundir esvazia casas, na onda 5 o jogador tinha 6 casas vazias e invocar custava 120. Fundir, que é a jogada certa, deixava o tabuleiro caro de reabastecer.
+
+**Regras comparadas** (robô, sementes 1 a 40, curva de vida da etapa 6):
+
+| Regra | Fundindo | Sem fundir | Onda 5, fundindo: casas vazias / custo |
+|---|---|---|---|
+| A: 20 + 10 por invocação feita (antiga) | 17/40 | 0/40 | 9,8 / 111 |
+| **B: 20 + 10 × cartas no tabuleiro** | 34/40 | 0/40 | 9,5 / **75** |
+| C: 20 + 5 por invocação feita | 33/40 | 0/40 | 9,4 / 78 |
+| B com +15 por carta | 24/40 | 0/40 | 9,3 / 99 |
+
+**Escolha: regra B com +10.** É a única que resolve a causa: o custo reflete o tabuleiro, e cada fusão (uma casa liberada) barateia a próxima invocação em 10. A regra C só adia o problema. A regra B com +15 volta a deixar o reabastecimento caro.
+
+Como a regra B deixou o jogo fácil demais para quem funde (34/40), a curva de vida das ondas foi recalibrada (D28).
+
+### D32. Tela cheia no celular, sem faixas
+O canvas agora ocupa a tela inteira (`100vw × 100dvh`). O mundo lógico de 360×640 continua igual, e a simulação não mudou: ele é escalado (maior escala que cabe) e centralizado, e o **fundo do jogo e o escurecimento da tela de fim se estendem pela tela toda**. Em celular comprido, a sobra vira céu do jogo acima e abaixo, e não faixa preta. Os toques descontam o deslocamento (`vista.ox/oy`). O tamanho é conferido a cada quadro, porque nem todo navegador móvel dispara `resize` quando a barra some. Também foram adicionadas metas para abrir em tela cheia ao adicionar à tela inicial. Testado em 360×640, 375×667, 390×844, 412×915, 768×1024 e 1200×700.
+
+### D33. Linha de depuração só com `?debug=1`
+A linha de tick, FPS, número de inimigos e semente fica escondida no jogo normal. Com `?debug=1` na URL ela aparece, e agora inclui a semente, para facilitar reproduzir um problema.
 
 ---
 
@@ -316,3 +353,10 @@ Antes, um toque em qualquer lugar da tela de fim reiniciava a partida, o que pod
 - Telas de vitória e derrota com estatísticas e botão "Jogar de novo" (D30).
 - O fluxo de demonstração foi removido. A referência de determinismo passou para a semente 11 (D22).
 - Testes: 59 automáticos (10 novos de ondas, chefes, vitória, derrota e começo leve).
+
+### Etapa 7: polimento e balanceamento (em andamento)
+- **Tela cheia no celular**, sem faixas: o fundo do jogo preenche a tela (D32).
+- **Depuração só com `?debug=1`** (D33).
+- **Custo de invocar** = 20 + 10 × cartas no tabuleiro, então fundir barateia (D31). Curva de vida recalibrada até ×6 (D28).
+- Testes: 60 automáticos. Mais: escala e toques testados em 6 tamanhos de tela, e 4 partidas completas desenhadas na página real (~17 mil quadros) sem erro.
+- **Falta:** publicar no Vercel, que depende de autorização.

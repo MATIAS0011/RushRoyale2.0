@@ -52,18 +52,25 @@
   var BOTAO_VELOCIDADE = { x: 268, y: 490, w: 64, h: 40 };
   var BOTAO_REINICIAR = { x: 90, y: 430, w: 180, h: 54 }; // só na tela de fim
 
-  var vista = { escala: 1, dpr: 1, cssW: W, cssH: H };
+  // escala: px CSS por unidade lógica; ox/oy: deslocamento (px CSS) do mundo 360x640
+  // centralizado no canvas; visivel: retângulo lógico que aparece na tela inteira.
+  var vista = { escala: 1, dpr: 1, cssW: W, cssH: H, ox: 0, oy: 0,
+                visivel: { x: 0, y: 0, w: W, h: H } };
 
-  // O CSS define o tamanho visível (9:16 que cabe na tela). Aqui só casamos a
-  // resolução interna com esse tamanho, nítido em telas de alta densidade.
+  // O canvas ocupa a tela inteira (CSS). O mundo lógico é escalado para caber
+  // (maior escala que cabe) e centralizado; a sobra mostra o fundo do jogo.
   function ajustar(canvas) {
     var r = canvas.getBoundingClientRect();
     var dpr = window.devicePixelRatio || 1;
+    var escala = Math.min(r.width / W, r.height / H);
 
     vista.cssW = r.width;
     vista.cssH = r.height;
-    vista.escala = r.width / W;
+    vista.escala = escala;
     vista.dpr = dpr;
+    vista.ox = (r.width - W * escala) / 2;
+    vista.oy = (r.height - H * escala) / 2;
+    vista.visivel = { x: -vista.ox / escala, y: -vista.oy / escala, w: r.width / escala, h: r.height / escala };
 
     canvas.width = Math.round(r.width * dpr);
     canvas.height = Math.round(r.height * dpr);
@@ -73,8 +80,8 @@
   function paraLogico(canvas, clientX, clientY) {
     var r = canvas.getBoundingClientRect();
     return {
-      x: (clientX - r.left) / r.width * W,
-      y: (clientY - r.top) / r.height * H
+      x: (clientX - r.left - vista.ox) / vista.escala,
+      y: (clientY - r.top - vista.oy) / vista.escala
     };
   }
 
@@ -83,12 +90,14 @@
   }
 
   // ---------- Partes ----------
+  // O fundo cobre a área visível inteira (inclusive a sobra fora do 360x640).
   function desenharFundo(ctx) {
-    var g = ctx.createLinearGradient(0, 0, 0, H);
+    var v = vista.visivel;
+    var g = ctx.createLinearGradient(0, v.y, 0, v.y + v.h);
     g.addColorStop(0, CORES.fundo1);
     g.addColorStop(1, CORES.fundo2);
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(v.x, v.y, v.w, v.h);
   }
 
   function desenharCaminho(ctx, tick) {
@@ -653,17 +662,22 @@
     ctx.font = 'bold 16px system-ui, sans-serif';
     ctx.fillText(laco.velocidade + 'x', b.x + b.w / 2, b.y + b.h / 2 + 1);
 
-    // Depuração
-    ctx.textAlign = 'left';
-    ctx.font = '11px monospace';
-    ctx.fillText('tick ' + estado.tick + ' · ' + info.fps + ' fps · ' + estado.inimigos.length + ' inim.', 12, H - 34);
+    // Depuração: só com ?debug=1 na URL
+    if (info.debug) {
+      ctx.textAlign = 'left';
+      ctx.fillStyle = CORES.textoFraco;
+      ctx.font = '11px monospace';
+      ctx.fillText('tick ' + estado.tick + ' · ' + info.fps + ' fps · ' + estado.inimigos.length +
+                   ' inim. · semente ' + estado.semente, 12, H - 34);
+    }
   }
 
   function desenharFim(ctx, estado) {
     if (estado.fase === 'jogando') return;
     var vitoria = estado.fase === 'vitoria';
+    var v = vista.visivel;
     ctx.fillStyle = 'rgba(8, 6, 14, 0.82)';
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(v.x, v.y, v.w, v.h); // escurece a tela inteira, não só o 360x640
 
     // Painel
     ctx.fillStyle = '#1b1530';
@@ -718,7 +732,7 @@
 
   function desenhar(ctx, estado, laco, info) {
     var k = vista.escala * vista.dpr;
-    ctx.setTransform(k, 0, 0, k, 0, 0);
+    ctx.setTransform(k, 0, 0, k, vista.ox * vista.dpr, vista.oy * vista.dpr);
 
     // Partida parada: não interpola (os inimigos ficam onde pararam).
     var alfa = estado.fase === 'jogando' ? GF.loop.alfa(laco) : 1;

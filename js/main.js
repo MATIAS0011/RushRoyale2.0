@@ -6,6 +6,7 @@
   var ctx = canvas.getContext('2d');
 
   // Semente: ?semente=123 na URL reproduz uma partida; senão, uma aleatória.
+  var DEBUG = /[?&]debug=1(&|$)/.test(location.search); // linha de tick/fps
   var param = /[?&]semente=(\d+)/.exec(location.search);
   var semente = param ? parseInt(param[1], 10) : (Date.now() % 1000000000);
 
@@ -20,8 +21,18 @@
     GF.jogo.estado = estado;
   }
 
-  GF.render.ajustar(canvas);
-  window.addEventListener('resize', function () { GF.render.ajustar(canvas); });
+  // Reajusta quando o tamanho da tela muda (girar, barra do navegador aparecer/sumir).
+  // Conferido a cada quadro também, porque nem todo navegador móvel dispara 'resize'.
+  var tamW = 0, tamH = 0;
+  function conferirTamanho() {
+    if (canvas.clientWidth !== tamW || canvas.clientHeight !== tamH) {
+      tamW = canvas.clientWidth;
+      tamH = canvas.clientHeight;
+      GF.render.ajustar(canvas);
+    }
+  }
+  conferirTamanho();
+  window.addEventListener('resize', conferirTamanho);
 
   // Estado só da interface (não afeta a simulação).
   //   arraste: carta sendo arrastada { pointerId, casa, id, x, y, elevar }
@@ -112,6 +123,7 @@
       tempoFps = 0;
     }
 
+    conferirTamanho();
     ui.negado = Math.max(0, ui.negado - dt * 3);
 
     // A carta arrastada pode ter deixado de existir (fusão já aplicada, partida reiniciada).
@@ -120,6 +132,7 @@
 
     GF.render.desenhar(ctx, estado, laco, {
       fps: fps,
+      debug: DEBUG,
       negado: ui.negado,
       arraste: a ? { casa: a.casa, x: a.x, y: a.y, alvo: alvoDoArraste(a) } : null
     });
