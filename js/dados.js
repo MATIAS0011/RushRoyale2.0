@@ -14,14 +14,27 @@
       aumentoCusto: 10       // cada invocação encarece as próximas em 10
     },
 
-    // Os 5 guardiões. Os atributos de combate entram na etapa 4.
+    // Os 5 guardiões. Alcance: o caminho inteiro.
+    // dano(nível) = dano * (1 + DANO_POR_NIVEL * (nível - 1))
+    // intervaloTicks = ticks entre ataques (60 = 1 s), antes do buff do Tambor.
     TIPOS_GUARDIAO: ['lanca', 'geada', 'brasa', 'tambor', 'sorte'],
+    DANO_POR_NIVEL: 0.8,
+    VEL_PROJETIL: 420, // px/s
     GUARDIOES: {
-      lanca:  { nome: 'Lança',  papel: 'dano único' },
-      geada:  { nome: 'Geada',  papel: 'lentidão' },
-      brasa:  { nome: 'Brasa',  papel: 'dano em área' },
-      tambor: { nome: 'Tambor', papel: 'suporte (buff)' },
-      sorte:  { nome: 'Sorte',  papel: 'crítico' }
+      lanca:  { nome: 'Lança',  papel: 'dano único',
+                dano: 20, intervaloTicks: 36 },
+      geada:  { nome: 'Geada',  papel: 'lentidão',
+                dano: 8, intervaloTicks: 60,
+                lento: 0.30, lentoPorNivel: 0.05, lentoMax: 0.60, lentoTicks: 120 },
+      brasa:  { nome: 'Brasa',  papel: 'dano em área',
+                dano: 15, intervaloTicks: 72,
+                raio: 40, raioPorNivel: 4 },
+      tambor: { nome: 'Tambor', papel: 'suporte (buff)',
+                // não ataca; vizinhos ortogonais atacam mais rápido
+                buff: 0.20, buffPorNivel: 0.10 },
+      sorte:  { nome: 'Sorte',  papel: 'crítico',
+                dano: 12, intervaloTicks: 48,
+                critChance: 0.25, critPorNivel: 0.05, critMult: 2.5 }
     },
 
     // vel em px/s (o caminho tem 940 px); dano = vida que tira do jogador ao escapar;

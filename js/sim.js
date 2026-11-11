@@ -29,8 +29,11 @@
       energia: GF.dados.ENERGIA.inicial,   // sempre inteira
       custoInvocar: GF.dados.ENERGIA.custoInicial,
       invocacoes: 0,
+      abates: 0,
       tabuleiro: tabuleiro,     // 15 casas; null = livre, ou { id, tipo, nivel, criadoTick }
       inimigos: [],
+      projeteis: [],
+      efeitos: [],              // só visuais (explosões, críticos); expiram sozinhos
       proximoId: 1,
       demo: opcoes.semDemo ? null : { proximo: GF.dados.DEMO.primeiroTick }
     };
@@ -71,8 +74,13 @@
     estado.energia -= estado.custoInvocar;
     estado.invocacoes++;
     estado.custoInvocar += GF.dados.ENERGIA.aumentoCusto;
-    estado.tabuleiro[casa] = { id: estado.proximoId++, tipo: tipo, nivel: 1, criadoTick: estado.tick };
+    estado.tabuleiro[casa] = criarGuardiao(estado, tipo, 1);
     return casa;
+  }
+
+  // recarga 0 = pronto para atacar assim que houver alvo.
+  function criarGuardiao(estado, tipo, nivel) {
+    return { id: estado.proximoId++, tipo: tipo, nivel: nivel, criadoTick: estado.tick, recarga: 0 };
   }
 
   function ganharEnergiaPorTempo(estado) {
@@ -92,7 +100,9 @@
       vidaMax: def.vida,
       vel: def.vel,
       dano: def.dano,
-      raio: def.raio
+      raio: def.raio,
+      lentoFator: 0,    // fração de velocidade perdida (0,3 = 30% mais lento)
+      lentoTicks: 0     // quanto tempo a lentidão ainda dura
     };
     estado.inimigos.push(ini);
     return ini;
@@ -108,6 +118,7 @@
     var idx = estado.inimigos.indexOf(ini);
     if (idx >= 0) estado.inimigos.splice(idx, 1);
     estado.energia += GF.dados.INIMIGOS[ini.tipo].energia;
+    estado.abates++;
     return true;
   }
 
@@ -116,7 +127,13 @@
     for (var i = estado.inimigos.length - 1; i >= 0; i--) {
       var ini = estado.inimigos[i];
       ini.distAnt = ini.dist;
-      ini.dist += ini.vel * DT;
+      var fator = 1;
+      if (ini.lentoTicks > 0) {
+        fator = 1 - ini.lentoFator;
+        ini.lentoTicks--;
+        if (ini.lentoTicks === 0) ini.lentoFator = 0;
+      }
+      ini.dist += ini.vel * fator * DT;
       if (ini.dist >= fim) {
         estado.inimigos.splice(i, 1);
         estado.vida -= ini.dano;
@@ -155,8 +172,15 @@
     // 3) Surgimento de inimigos
     gerarDemo(estado);
 
-    // 4) Movimento e escapes
+    // 4) Guardiões atacam; projéteis voam e acertam
+    GF.combate.atualizarGuardioes(estado);
+    GF.combate.atualizarProjeteis(estado);
+
+    // 5) Movimento e escapes
     moverInimigos(estado);
+
+    // 6) Efeitos visuais vencidos
+    GF.combate.limparEfeitos(estado);
 
     estado.tick++;
   }
@@ -168,10 +192,12 @@
       fase: estado.fase,
       rng: estado.rng.s,
       vida: estado.vida,
+      abates: estado.abates,
       energia: estado.energia,
       custoInvocar: estado.custoInvocar,
       tabuleiro: estado.tabuleiro,
-      inimigos: estado.inimigos
+      inimigos: estado.inimigos,
+      projeteis: estado.projeteis
     });
   }
 
@@ -187,6 +213,7 @@
     causarDano: causarDano,
     podeInvocar: podeInvocar,
     invocar: invocar,
+    criarGuardiao: criarGuardiao,
     casasLivres: casasLivres,
     resumo: resumo
   };

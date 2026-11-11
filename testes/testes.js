@@ -85,23 +85,23 @@
   });
 
   // ---------- Determinismo ----------
-  var SEMENTE = 12345;
+  // Semente 7 com este roteiro: sorteia os 5 tipos de guardião, tem dezenas de
+  // abates e termina em derrota. Se o balanceamento mudar, confira o 1º teste abaixo.
+  var SEMENTE = 7;
   var TICKS = 60 * 120; // até 2 min de jogo (a partida de demonstração termina antes, em derrota)
   // Invocações reais. A do tick 334 acontece sem energia suficiente e precisa
   // ser recusada do mesmo jeito em todas as execuções.
-  var ROTEIRO = [
-    { tick: 10, acao: { tipo: 'invocar' } },
-    { tick: 333, acao: { tipo: 'invocar' } },
-    { tick: 334, acao: { tipo: 'invocar' } },
-    { tick: 1200, acao: { tipo: 'invocar' } },
-    { tick: 2000, acao: { tipo: 'invocar' } },
-    { tick: 2001, acao: { tipo: 'invocar' } }
-  ];
+  var ROTEIRO = [10, 333, 334, 600, 900, 1200, 1500, 1800, 2000, 2001, 2400, 3000, 3600, 4200]
+    .map(function (t) { return { tick: t, acao: { tipo: 'invocar' } }; });
 
   var referencia = rodarDireto(SEMENTE, ROTEIRO, TICKS);
   var resumoRef = GF.sim.resumo(referencia);
 
-  teste('Determinismo: a partida de referência chega à derrota (cobre o fim de jogo)', function () {
+  teste('Determinismo: a partida de referência tem os 5 guardiões, combate e chega à derrota', function () {
+    var tipos = {};
+    referencia.tabuleiro.forEach(function (g) { if (g) tipos[g.tipo] = true; });
+    afirmar(Object.keys(tipos).length === 5, 'tipos sorteados: ' + Object.keys(tipos).join(','));
+    afirmar(referencia.abates > 10, 'abates=' + referencia.abates);
     afirmar(referencia.fase === 'derrota', 'fase=' + referencia.fase + ' tick=' + referencia.tick);
   });
 
@@ -117,8 +117,10 @@
       var r = rodarPartida({ semente: SEMENTE, roteiro: ROTEIRO, ticks: TICKS, velocidade: velocidade, geradorDt: geradorDt });
       var ref = r.estado.tick === TICKS ? resumoRef : GF.sim.resumo(rodarDireto(SEMENTE, ROTEIRO, r.estado.tick));
       afirmar(GF.sim.resumo(r.estado) === ref, 'estado final diferente no tick ' + r.estado.tick);
-      afirmar(r.estado.registro.length === ROTEIRO.length, 'ações registradas: ' + r.estado.registro.length);
-      for (var i = 0; i < ROTEIRO.length; i++) {
+      // Só contam as ações cujo tick chegou antes do fim da partida.
+      var esperadas = ROTEIRO.filter(function (a) { return a.tick < r.estado.tick; });
+      afirmar(r.estado.registro.length === esperadas.length, 'ações registradas: ' + r.estado.registro.length + ' de ' + esperadas.length);
+      for (var i = 0; i < esperadas.length; i++) {
         afirmar(r.estado.registro[i].tick === ROTEIRO[i].tick, 'ação ' + i + ' aplicada no tick ' + r.estado.registro[i].tick);
       }
     });
@@ -337,6 +339,184 @@
     afirmar(e.inimigos.length === 0, 'inimigo não removido');
     afirmar(e.energia === en + GF.dados.INIMIGOS.tanque.energia, 'energia=' + e.energia);
     afirmar(GF.sim.causarDano(e, ini, 500) === false && e.energia === en + GF.dados.INIMIGOS.tanque.energia, 'recompensa dada duas vezes');
+  });
+
+  // ---------- Etapa 4: combate dos 5 papéis ----------
+  var C = GF.combate;
+  var G = GF.dados.GUARDIOES;
+
+  // Estado sem demo com guardiões nas casas indicadas: { casa: [tipo, nivel] }
+  function cenarioCombate(guardioes, semente) {
+    var e = GF.sim.criarEstado(semente || 1, { semDemo: true });
+    for (var casa in guardioes) {
+      e.tabuleiro[casa] = GF.sim.criarGuardiao(e, guardioes[casa][0], guardioes[casa][1] || 1);
+    }
+    return e;
+  }
+  function rodar(e, ticks) { for (var t = 0; t < ticks; t++) GF.sim.passo(e); }
+  function inimigoEm(e, tipo, dist, vida) {
+    var ini = GF.sim.criarInimigo(e, tipo);
+    ini.dist = ini.distAnt = dist;
+    if (vida !== undefined) ini.vida = ini.vidaMax = vida;
+    return ini;
+  }
+
+  teste('Combate: dano por nível = base × (1 + 0,8 × (nível − 1))', function () {
+    afirmar(C.dano('lanca', 1) === 20, 'n1=' + C.dano('lanca', 1));
+    afirmar(perto(C.dano('lanca', 3), 52, 1e-9), 'n3=' + C.dano('lanca', 3));
+    afirmar(perto(C.dano('sorte', 7), 12 * 5.8, 1e-9), 'sorte n7=' + C.dano('sorte', 7));
+  });
+
+  teste('Lança: abate um Fragmento (100 de vida) com 5 disparos e recebe a energia', function () {
+    var e = cenarioCombate({ 7: ['lanca'] });
+    var ini = inimigoEm(e, 'comum', 200);
+    var en = e.energia, t = 0;
+    while (e.inimigos.length && t < 600) { GF.sim.passo(e); t++; }
+    afirmar(e.inimigos.length === 0 && e.abates === 1, 'não abateu');
+    afirmar(e.vida === GF.dados.JOGADOR.vidaInicial, 'inimigo escapou');
+    // 5 disparos: o último sai em 4×36 = 144 ticks, mais o voo
+    afirmar(t > 144 && t < 144 + 60, 'levou ' + t + ' ticks');
+    var passiva = Math.floor(t / GF.dados.ENERGIA.ticksPorPonto);
+    afirmar(e.energia - en - passiva === GF.dados.INIMIGOS.comum.energia, 'energia do abate errada');
+  });
+
+  teste('Alvo: todos miram o inimigo mais avançado no caminho', function () {
+    var e = cenarioCombate({});
+    inimigoEm(e, 'comum', 100);
+    var frente = inimigoEm(e, 'comum', 300);
+    inimigoEm(e, 'tanque', 250);
+    ['lanca', 'geada', 'brasa', 'sorte'].forEach(function (t) {
+      afirmar(C.escolherAlvo(e, t) === frente, t + ' escolheu outro alvo');
+    });
+  });
+
+  teste('Geada: aplica 30% de lentidão por 2 s e depois o inimigo volta ao normal', function () {
+    var e = cenarioCombate({ 7: ['geada'] });
+    var ini = inimigoEm(e, 'comum', 300, 1e6);
+    var t = 0;
+    while (ini.lentoTicks === 0 && t < 120) { GF.sim.passo(e); t++; }
+    afirmar(ini.lentoTicks > 0 && perto(ini.lentoFator, 0.30, 1e-9), 'não ficou lento: ' + ini.lentoFator);
+    e.tabuleiro[7] = null; // tira a Geada para medir sem novos acertos
+    var d0 = ini.dist;
+    rodar(e, 60);
+    afirmar(perto(ini.dist - d0, 45 * 0.7, 1e-6), 'andou ' + (ini.dist - d0) + ' em 1 s lento (esperado 31,5)');
+    rodar(e, 60);
+    afirmar(ini.lentoTicks === 0 && ini.lentoFator === 0, 'lentidão não acabou');
+    d0 = ini.dist;
+    rodar(e, 60);
+    afirmar(perto(ini.dist - d0, 45, 1e-6), 'velocidade normal não voltou: ' + (ini.dist - d0));
+  });
+
+  teste('Geada: lentidão não se acumula; vale a mais forte e a duração renova', function () {
+    afirmar(perto(C.lentidao(1), 0.30, 1e-9) && perto(C.lentidao(3), 0.40, 1e-9) && perto(C.lentidao(7), 0.60, 1e-9), 'tabela errada');
+    var e = cenarioCombate({ 0: ['geada', 1], 1: ['geada', 1], 2: ['geada', 3] });
+    var ini = inimigoEm(e, 'tanque', 300, 1e6);
+    rodar(e, 60);
+    afirmar(perto(ini.lentoFator, 0.40, 1e-9), 'fator=' + ini.lentoFator + ' (esperado 0,40, não a soma)');
+  });
+
+  teste('Geada: prefere o inimigo mais avançado que ainda não está lento', function () {
+    var e = cenarioCombate({});
+    var frente = inimigoEm(e, 'comum', 400);
+    var atras = inimigoEm(e, 'comum', 200);
+    frente.lentoTicks = 50; frente.lentoFator = 0.3;
+    afirmar(C.escolherAlvo(e, 'geada') === atras, 'Geada não trocou de alvo');
+    afirmar(C.escolherAlvo(e, 'lanca') === frente, 'Lança deveria seguir no mais avançado');
+    atras.lentoTicks = 50;
+    afirmar(C.escolherAlvo(e, 'geada') === frente, 'todos lentos: Geada deveria mirar o mais avançado');
+  });
+
+  teste('Brasa: explosão atinge todos no raio e poupa quem está longe', function () {
+    var e = cenarioCombate({ 7: ['brasa'] });
+    var a = inimigoEm(e, 'tanque', 400, 1000);
+    var b = inimigoEm(e, 'tanque', 380, 1000);
+    var c = inimigoEm(e, 'tanque', 360, 1000);
+    var longe = inimigoEm(e, 'tanque', 150, 1000);
+    a.vel = b.vel = c.vel = longe.vel = 0; // parados, para medir só a explosão
+    var t = 0;
+    while (a.vida === 1000 && t < 120) { GF.sim.passo(e); t++; }
+    afirmar(a.vida === 985 && b.vida === 985 && c.vida === 985, 'vidas ' + a.vida + '/' + b.vida + '/' + c.vida);
+    afirmar(longe.vida === 1000, 'atingiu o inimigo longe');
+    afirmar(e.efeitos.some(function (x) { return x.tipo === 'explosao'; }), 'sem efeito de explosão');
+  });
+
+  teste('Brasa: explosão que mata vários paga cada abate uma vez só', function () {
+    var e = cenarioCombate({ 7: ['brasa'] });
+    for (var k = 0; k < 4; k++) inimigoEm(e, 'comum', 400 - k * 5, 10).vel = 0;
+    var en = e.energia;
+    rodar(e, 90);
+    afirmar(e.abates === 4 && e.inimigos.length === 0, 'abates=' + e.abates);
+    afirmar(e.energia - en - 2 === 4 * GF.dados.INIMIGOS.comum.energia, 'energia=' + (e.energia - en));
+  });
+
+  function contarDisparos(guardioes, casaAtirador, ticks) {
+    var e = cenarioCombate(guardioes);
+    var ini = inimigoEm(e, 'tanque', 300, 1e9);
+    ini.vel = 0;
+    var vidaAntes = ini.vida;
+    rodar(e, ticks);
+    return Math.round((vidaAntes - ini.vida) / C.dano('lanca', guardioes[casaAtirador][1] || 1));
+  }
+
+  teste('Tambor: vizinhos atacam 20% mais rápido; diagonal não conta; Tambores não se somam', function () {
+    var base = contarDisparos({ 7: ['lanca'] }, 7, 600);
+    var comBuff = contarDisparos({ 7: ['lanca'], 6: ['tambor'] }, 7, 600);
+    var diagonal = contarDisparos({ 7: ['lanca'], 1: ['tambor'] }, 7, 600);
+    var dois = contarDisparos({ 7: ['lanca'], 6: ['tambor'], 8: ['tambor'] }, 7, 600);
+    var razao = comBuff / base;
+    afirmar(razao > 1.12 && razao < 1.28, 'base=' + base + ' com buff=' + comBuff);
+    afirmar(diagonal === base, 'diagonal deu buff: ' + diagonal + ' vs ' + base);
+    afirmar(dois === comBuff, 'dois Tambores somaram: ' + dois + ' vs ' + comBuff);
+    var e = cenarioCombate({ 7: ['lanca'], 6: ['tambor', 1], 2: ['tambor', 3] });
+    afirmar(perto(C.buffEm(e, 7), 0.40, 1e-9), 'deveria valer o Tambor mais forte (0,40): ' + C.buffEm(e, 7));
+  });
+
+  teste('Tambor: não ataca', function () {
+    var e = cenarioCombate({ 7: ['tambor', 7] });
+    var ini = inimigoEm(e, 'comum', 300);
+    rodar(e, 300);
+    afirmar(ini.vida === ini.vidaMax && e.projeteis.length === 0, 'Tambor causou dano');
+  });
+
+  teste('Sorte: ~25% de críticos com 2,5× de dano (sorteados pelo RNG do estado)', function () {
+    var crits = 0, total = 0, danosOk = true;
+    for (var s = 1; s <= 40; s++) {
+      var e = cenarioCombate({ 7: ['sorte'] }, s);
+      var ini = inimigoEm(e, 'tanque', 300, 1e9);
+      ini.vel = 0;
+      for (var t = 0; t < 600; t++) {
+        GF.sim.passo(e);
+        for (var k = 0; k < e.efeitos.length; k++) {
+          var ef = e.efeitos[k];
+          if (ef.tick !== e.tick - 1) continue;
+          total++;
+          if (ef.tipo === 'critico') { crits++; if (ef.valor !== 30) danosOk = false; }
+          else if (ef.valor !== 12) danosOk = false;
+        }
+      }
+    }
+    var f = crits / total;
+    afirmar(total > 400, 'poucos disparos: ' + total);
+    afirmar(f > 0.20 && f < 0.30, 'críticos: ' + (f * 100).toFixed(1) + '% de ' + total);
+    afirmar(danosOk, 'valor de dano errado (esperado 12 normal / 30 crítico)');
+  });
+
+  teste('Projétil some se o alvo morrer antes (sem dano nem recompensa extra)', function () {
+    var e = cenarioCombate({ 6: ['lanca'], 8: ['lanca'] });
+    inimigoEm(e, 'comum', 300, 15).vel = 0; // um disparo basta
+    var en = e.energia;
+    rodar(e, 60); // ticks 0..59: energia passiva só no tick 30 (+1)
+    afirmar(e.abates === 1 && e.projeteis.length === 0, 'abates=' + e.abates + ' projéteis=' + e.projeteis.length);
+    afirmar(e.energia - en - 1 === GF.dados.INIMIGOS.comum.energia, 'energia ganha=' + (e.energia - en));
+  });
+
+  teste('Guardião sem alvo fica pronto e dispara assim que um inimigo aparece', function () {
+    var e = cenarioCombate({ 7: ['lanca'] });
+    rodar(e, 200);
+    afirmar(e.projeteis.length === 0, 'disparou sem alvo');
+    inimigoEm(e, 'comum', 300);
+    GF.sim.passo(e);
+    afirmar(e.projeteis.length === 1, 'não disparou de imediato');
   });
 
   // ---------- Resultado ----------

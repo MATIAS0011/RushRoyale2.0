@@ -261,7 +261,90 @@
       var t = Math.min(1, (estado.tick - g.criadoTick + alfa) / 12);
       var escala = t < 1 ? 1 + 0.25 * Math.sin(t * Math.PI) - 0.6 * (1 - t) : 1;
       desenharCarta(ctx, g, c.cx, c.cy, Math.max(0.1, escala));
+
+      // Marca de buff: setinha verde no canto (vizinho de um Tambor)
+      if (g.tipo !== 'tambor' && GF.combate.buffEm(estado, i) > 0) {
+        ctx.fillStyle = CORES.guardiao.tambor.forma;
+        ctx.beginPath();
+        ctx.moveTo(c.x + c.w - 12, c.y + 7);
+        ctx.lineTo(c.x + c.w - 6, c.y + 14);
+        ctx.lineTo(c.x + c.w - 18, c.y + 14);
+        ctx.closePath();
+        ctx.fill();
+      }
     }
+  }
+
+  function desenharProjeteis(ctx, estado, alfa) {
+    for (var i = 0; i < estado.projeteis.length; i++) {
+      var p = estado.projeteis[i];
+      var x = p.xAnt + (p.x - p.xAnt) * alfa;
+      var y = p.yAnt + (p.y - p.yAnt) * alfa;
+      var ang = Math.atan2(p.y - p.yAnt, p.x - p.xAnt);
+      var cor = CORES.guardiao[p.tipo].forma;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = cor;
+      ctx.strokeStyle = cor;
+      ctx.beginPath();
+      if (p.tipo === 'lanca') {
+        ctx.rotate(ang);
+        ctx.lineWidth = 3;
+        ctx.moveTo(-8, 0); ctx.lineTo(6, 0);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(9, 0); ctx.lineTo(3, -4); ctx.lineTo(3, 4);
+        ctx.closePath();
+        ctx.fill();
+      } else if (p.tipo === 'brasa') {
+        ctx.shadowColor = cor; ctx.shadowBlur = 10;
+        ctx.arc(0, 0, 5.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (p.tipo === 'geada') {
+        ctx.shadowColor = cor; ctx.shadowBlur = 8;
+        ctx.arc(0, 0, 4, 0, Math.PI * 2);
+        ctx.fill();
+      } else { // sorte
+        var s = p.critico ? 7 : 4.5;
+        if (p.critico) { ctx.shadowColor = cor; ctx.shadowBlur = 12; }
+        ctx.rotate(estado.tick * 0.3);
+        ctx.moveTo(0, -s); ctx.lineTo(s * 0.7, 0); ctx.lineTo(0, s); ctx.lineTo(-s * 0.7, 0);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  function desenharEfeitos(ctx, estado, alfa) {
+    var dur = GF.combate.DURACAO_EFEITO;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (var i = 0; i < estado.efeitos.length; i++) {
+      var e = estado.efeitos[i];
+      var t = Math.min(1, (estado.tick - e.tick + alfa) / dur); // 0 → 1
+      ctx.globalAlpha = 1 - t;
+      if (e.tipo === 'explosao') {
+        ctx.fillStyle = 'rgba(255, 120, 60, 0.35)';
+        ctx.strokeStyle = CORES.guardiao.brasa.forma;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.r * (0.4 + 0.6 * Math.sqrt(t)), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      } else if (e.tipo === 'critico') {
+        ctx.fillStyle = CORES.guardiao.sorte.forma;
+        ctx.font = 'bold ' + Math.round(15 + 5 * (1 - t)) + 'px system-ui, sans-serif';
+        ctx.fillText(e.valor + '!', e.x, e.y - 14 - 18 * t);
+      } else if (t < 0.4) { // acerto comum: faísca curta
+        ctx.globalAlpha = 1 - t / 0.4;
+        ctx.fillStyle = CORES.guardiao[e.cor].forma;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, 3 + 6 * t, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
   }
 
   function desenharInimigos(ctx, estado, alfa) {
@@ -313,6 +396,17 @@
         ctx.fill();
       }
       ctx.restore();
+
+      // Lento: anel gelado em volta
+      if (ini.lentoTicks > 0) {
+        ctx.strokeStyle = CORES.guardiao.geada.forma;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r + 4, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
 
       // Barra de vida (só quando ferido)
       if (ini.vida < ini.vidaMax) {
@@ -449,6 +543,8 @@
     desenharTabuleiro(ctx);
     desenharGuardioes(ctx, estado, alfa);
     desenharInimigos(ctx, estado, alfa);
+    desenharProjeteis(ctx, estado, alfa);
+    desenharEfeitos(ctx, estado, alfa);
     desenharHud(ctx, estado);
     desenharControles(ctx, laco, estado, info);
     desenharFim(ctx, estado);

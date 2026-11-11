@@ -54,6 +54,24 @@ Cada carta mostra a forma do guardião sobre um fundo escuro da mesma cor. O **n
 - **Invocar:** escolhe uma casa livre ao acaso e um dos 5 guardiões ao acaso (chances iguais), sempre de nível 1.
 - **Não dá para invocar** sem energia suficiente, com o tabuleiro cheio ou com a partida encerrada. Nesses casos nada é gasto, e o botão aparece apagado (com "Cheio" quando o tabuleiro está lotado) e treme se for tocado.
 
+### Combate (em `js/dados.js` e `js/combate.js`)
+- **Alcance:** todo guardião alcança o caminho inteiro.
+- **Alvo:** o inimigo **mais avançado** no caminho (empate: o que surgiu primeiro). Exceção: a **Geada prefere o mais avançado que ainda não está lento**. Se todos estiverem lentos, mira o mais avançado.
+- **Dano por nível:** `dano base × (1 + 0,8 × (nível − 1))`. Ou seja, nível 2 = 1,8×, nível 3 = 2,6× … nível 7 = 5,8×.
+- **Projéteis** voam a 420 px/s, perseguindo o alvo. Se o alvo morrer ou escapar antes, o projétil some sem efeito.
+- Um guardião recém-invocado já está pronto e dispara assim que houver um inimigo.
+
+| Guardião | Dano base | Intervalo | Efeito | Por nível |
+|---|---|---|---|---|
+| Lança | 20 | 0,6 s | — | só o dano |
+| Geada | 8 | 1,0 s | lentidão de 30% por 2 s | +5% de lentidão (máx. 60%) |
+| Brasa | 15 | 1,2 s | explosão de raio 40 px, atinge todos no raio | +4 px de raio |
+| Tambor | — | — | não ataca; vizinhos (cima, baixo, esquerda, direita) atacam 20% mais rápido | +10% de buff |
+| Sorte | 12 | 0,8 s | 25% de chance de crítico com 2,5× de dano | +5% de chance |
+
+- **A lentidão não se acumula:** vale a mais forte ativa, e um novo acerto renova a duração para 2 s.
+- **O buff do Tambor não se acumula:** vale o Tambor vizinho mais forte. A diagonal não conta.
+
 ---
 
 ## Decisões técnicas
@@ -115,11 +133,26 @@ A interface usa `GF.sim.podeInvocar` só para desenhar o botão e decidir se tre
 ### D15. Ordem dos sorteios na invocação
 Primeiro a casa (entre as livres, em ordem crescente de índice), depois o tipo. Mudar essa ordem muda as partidas geradas por uma mesma semente, então qualquer mudança aqui precisa ser registrada.
 
+### D16. Todo dano passa por `GF.sim.causarDano`
+Essa função tira vida, remove o inimigo morto, conta o abate (`estado.abates`) e paga a energia uma única vez (um inimigo já morto ignora dano extra no mesmo passo). O combate usa só ela.
+
 ### D17. A Sorte é amarela
 O plano inicial previa a Sorte em roxo. No jogo ela é amarela (`#ffd34d`), para não se confundir com a fenda e os inimigos, que são roxos. As cores de todos os guardiões ficam em `CORES.guardiao`, no `js/render.js`.
 
-### D16. Todo dano passa por `GF.sim.causarDano`
-Essa função tira vida, remove o inimigo morto e paga a energia uma única vez (um inimigo já morto ignora dano extra no mesmo passo). As etapas de combate usam só ela.
+### D18. O combate faz parte da simulação (`js/combate.js`)
+Recargas, alvos, projéteis, críticos e lentidão rodam no passo fixo. O único sorteio do combate (o crítico da Sorte) usa `estado.rng`, no momento do disparo. Ordem dentro de um passo: ações → energia passiva → surgimento de inimigos → guardiões disparam → projéteis voam e acertam → inimigos andam e escapam → limpeza de efeitos.
+
+### D19. A recarga é contada em ticks, e o Tambor acelera o relógio
+Cada guardião tem `recarga`. A cada passo ela cai `1 + buff`, e ao disparar soma `intervaloTicks`. A sobra negativa é aproveitada. Assim o buff vale exatamente +20% de ataques por segundo, e tudo continua determinístico.
+
+### D20. Projéteis de verdade, que perseguem o alvo
+Os projéteis dão leitura visual de quem atira em quem, e o tempo de voo faz parte do jogo. Se o alvo morrer antes do impacto, o projétil some. Isso causa algum desperdício quando vários guardiões miram o mesmo inimigo, um efeito aceito na v0.1 que pode ser revisto no balanceamento.
+
+### D21. Efeitos visuais ficam no estado da simulação
+Explosões, faíscas de acerto e números de crítico entram em `estado.efeitos` com o tick de criação e expiram depois de 30 ticks. Assim o desenho continua só lendo o estado. Os efeitos não entram no `resumo` dos testes.
+
+### D22. Partida de referência dos testes de determinismo: semente 7
+Com o roteiro de 14 invocações, a semente 7 sorteia os 5 tipos, tem dezenas de abates e termina em derrota. Ela cobre todo o combate. Observação de balanceamento: algumas sementes (como a 12345) sorteiam só Tambores e Geada no começo e perdem sem abater ninguém. Isso deve ser considerado nas ondas da etapa 6 e no balanceamento da etapa 7.
 
 ---
 
@@ -140,3 +173,8 @@ Essa função tira vida, remove o inimigo morto e paga a energia uma única vez 
 - Energia passiva e por abate, botão Invocar com custo crescente, cartas dos 5 guardiões com animação de entrada e níveis em pontinhos.
 - Os guardiões ainda não atacam (isso vem na etapa 4). A recompensa por abate já existe em `causarDano` e é testada diretamente.
 - Testes: 30 automáticos. O roteiro de determinismo agora tem invocações reais, aceitas e recusadas.
+
+### Etapa 4: os 5 papéis em combate ✅
+- Lança (dano único), Geada (lentidão), Brasa (área), Tambor (buff nos vizinhos) e Sorte (crítico) funcionando, com projéteis, explosões, números de crítico, anel de lentidão e setinha de buff.
+- `CLAUDE.md` criado com as regras de trabalho do projeto.
+- Testes: 43 automáticos (13 novos de combate). O determinismo agora cobre uma partida com os 5 guardiões lutando.
