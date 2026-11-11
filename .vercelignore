@@ -1,0 +1,5 @@
+# Publicar só o jogo (index.html, css/, js/). Ver D34 no DECISOES.md.
+*.md
+testes.html
+testes/
+.vercelignore

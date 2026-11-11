@@ -12,6 +12,8 @@ Jogo de navegador de defesa com cartas que se fundem. Nome, personagens e visual
   2. **Atualizar o `DECISOES.md`** (regras, números de balanceamento, decisões e histórico da etapa).
   3. Fazer um **commit em português**.
 - **Nunca fazer push** (nem criar PR) sem o usuário pedir.
+- **Cada push no `main` publica o jogo no Vercel** (integração com o GitHub). Por isso **nenhum push sem autorização explícita do usuário**, a cada vez. Uma autorização vale só para aquele push.
+- O que vai para o link publicado é controlado pelo `.vercelignore`: só `index.html`, `css/` e `js/`. Os arquivos `*.md` e os testes não são publicados.
 
 ## Restrições técnicas (não quebrar)
 - HTML, CSS e JavaScript puro, **sem framework e sem etapa de build**.

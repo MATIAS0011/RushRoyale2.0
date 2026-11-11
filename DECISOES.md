@@ -315,6 +315,11 @@ O canvas agora ocupa a tela inteira (`100vw × 100dvh`). O mundo lógico de 360�
 ### D33. Linha de depuração só com `?debug=1`
 A linha de tick, FPS, número de inimigos e semente fica escondida no jogo normal. Com `?debug=1` na URL ela aparece, e agora inclui a semente, para facilitar reproduzir um problema.
 
+### D34. Publicação no Vercel via GitHub (repositório privado)
+O jogo é publicado pelo Vercel, ligado ao repositório privado `MATIAS0011/RushRoyale2.0` no GitHub. O projeto é do tipo "Other": sem framework, sem comando de build, e a pasta raiz é servida como está. O jogo continua sendo só arquivos estáticos e abre com dois cliques localmente.
+- O `.vercelignore` publica **só o jogo**: `index.html`, `css/` e `js/`. Ficam de fora `*.md` (DECISOES, CLAUDE), `testes.html` e `testes/`.
+- **Cada push no `main` republica o jogo.** Por isso nenhum push sem autorização explícita do usuário, a cada vez.
+
 ---
 
 ## Histórico das etapas
