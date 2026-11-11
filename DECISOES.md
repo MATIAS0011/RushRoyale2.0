@@ -42,7 +42,17 @@ Os inimigos não se bloqueiam: os rápidos ultrapassam os lentos.
 | Geada | deixa o alvo mais lento | hexágono azul-claro |
 | Brasa | dano em área | círculo vermelho |
 | Tambor | buff de velocidade de ataque nos vizinhos | quadrado verde |
-| Sorte | chance alta de crítico | losango roxo |
+| Sorte | chance alta de crítico | losango **dourado** (era roxo no plano; mudou para não confundir com a fenda e os inimigos roxos) |
+
+Cada carta mostra a forma do guardião sobre um fundo escuro da mesma cor. O **nível** aparece em pontinhos brancos na base (1 a 7).
+
+### Energia e invocação (em `js/dados.js`)
+- A partida começa com **60 de energia**. A energia é sempre um número inteiro.
+- **Energia passiva:** +1 a cada 0,5 s (120 por minuto).
+- **Abates:** Fragmento +5, Faísca +4, Rocha-oca +10. Dano parcial não dá nada.
+- **Custo da invocação:** começa em **20** e sobe **+10 a cada invocação** (20, 30, 40…). Preencher as 15 casas custa 1350 no total. O custo só sobe ao invocar, nunca ao fundir.
+- **Invocar:** escolhe uma casa livre ao acaso e um dos 5 guardiões ao acaso (chances iguais), sempre de nível 1.
+- **Não dá para invocar** sem energia suficiente, com o tabuleiro cheio ou com a partida encerrada. Nesses casos nada é gasto, e o botão aparece apagado (com "Cheio" quando o tabuleiro está lotado) e treme se for tocado.
 
 ---
 
@@ -99,6 +109,15 @@ Com `fase` diferente de `'jogando'`, `passo()` não faz nada (nem avança o tick
 ### D13. Fluxo de demonstração (provisório)
 Até as ondas existirem (etapa 6), surge um inimigo a cada 1,2 s, com tipo sorteado pelo RNG (comum tem chance dobrada). Os testes usam `criarEstado(semente, { semDemo: true })` para cenários controlados.
 
+### D14. Quem valida a invocação é a simulação
+A interface usa `GF.sim.podeInvocar` só para desenhar o botão e decidir se treme. A ação `invocar` sempre passa pela fila, e a simulação valida de novo ao aplicá-la, porque o estado pode mudar entre o toque e o passo. Uma invocação recusada não altera nada, nem o RNG, mas fica no registro.
+
+### D15. Ordem dos sorteios na invocação
+Primeiro a casa (entre as livres, em ordem crescente de índice), depois o tipo. Mudar essa ordem muda as partidas geradas por uma mesma semente, então qualquer mudança aqui precisa ser registrada.
+
+### D16. Todo dano passa por `GF.sim.causarDano`
+Essa função tira vida, remove o inimigo morto e paga a energia uma única vez (um inimigo já morto ignora dano extra no mesmo passo). As etapas de combate usam só ela.
+
 ---
 
 ## Histórico das etapas
@@ -113,3 +132,8 @@ Até as ondas existirem (etapa 6), surge um inimigo a cada 1,2 s, com tipo sorte
 - Caminho em U com fenda de entrada e cristal de saída, tabuleiro 5×3, 3 tipos de inimigo, vida do jogador e derrota com toque para recomeçar.
 - A demo de faíscas da etapa 1 foi removida.
 - Testes: 20 automáticos. O determinismo agora cobre uma partida inteira até a derrota.
+
+### Etapa 3: energia e botão Invocar ✅
+- Energia passiva e por abate, botão Invocar com custo crescente, cartas dos 5 guardiões com animação de entrada e níveis em pontinhos.
+- Os guardiões ainda não atacam (isso vem na etapa 4). A recompensa por abate já existe em `causarDano` e é testada diretamente.
+- Testes: 30 automáticos. O roteiro de determinismo agora tem invocações reais, aceitas e recusadas.

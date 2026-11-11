@@ -34,7 +34,16 @@
       recomecar();
       return;
     }
+    if (GF.render.dentro(p, GF.render.BOTAO_INVOCAR)) {
+      // A simulação valida de novo ao aplicar; aqui é só para o aviso visual.
+      if (GF.sim.podeInvocar(estado)) GF.sim.agendar(estado, { tipo: 'invocar' });
+      else ui.negado = 1;
+      return;
+    }
   });
+
+  // Estado só da interface (não afeta a simulação).
+  var ui = { negado: 0 };
   canvas.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
 
   // Laço de quadros
@@ -55,7 +64,8 @@
       tempoFps = 0;
     }
 
-    GF.render.desenhar(ctx, estado, laco, { fps: fps });
+    ui.negado = Math.max(0, ui.negado - dt * 3);
+    GF.render.desenhar(ctx, estado, laco, { fps: fps, negado: ui.negado });
     requestAnimationFrame(quadro);
   }
 

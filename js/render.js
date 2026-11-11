@@ -25,15 +25,29 @@
     barraVida: '#7ee08a',
     botao: '#2c2546',
     botaoBorda: '#6f5fa8',
+    energia: '#ffd84d',
+    botaoInvocar: '#5a3fb0',
+    botaoInvocarBorda: '#b49cff',
+    botaoApagado: '#2a2438',
+    botaoApagadoBorda: '#463d5e',
     inimigo: {
       comum:  { corpo: '#8a4fd6', borda: '#c9a2ff' },
       rapido: { corpo: '#2fb3d6', borda: '#a8ecff' },
       tanque: { corpo: '#5b4a3f', borda: '#a8907c' }
+    },
+    // fundo = tom escuro da carta; forma = cor viva do símbolo
+    guardiao: {
+      lanca:  { fundo: '#4a2a14', forma: '#ff9a3c' },
+      geada:  { fundo: '#173548', forma: '#8fe0ff' },
+      brasa:  { fundo: '#4a1714', forma: '#ff5a4a' },
+      tambor: { fundo: '#1a3d1c', forma: '#72de6a' },
+      sorte:  { fundo: '#463a10', forma: '#ffd34d' }
     }
   };
 
   // Botões da interface em coordenadas lógicas (usados também para o clique).
-  var BOTAO_VELOCIDADE = { x: W - 76, y: H - 52, w: 64, h: 36 };
+  var BOTAO_INVOCAR = { x: 115, y: 478, w: 130, h: 64 };
+  var BOTAO_VELOCIDADE = { x: 268, y: 490, w: 64, h: 40 };
 
   var vista = { escala: 1, dpr: 1, cssW: W, cssH: H };
 
@@ -156,6 +170,100 @@
     }
   }
 
+  // Desenha o símbolo do guardião centrado em (0,0), com "raio" r.
+  function formaGuardiao(ctx, tipo, r) {
+    ctx.beginPath();
+    if (tipo === 'lanca') {
+      ctx.moveTo(0, -r); ctx.lineTo(r * 0.87, r * 0.6); ctx.lineTo(-r * 0.87, r * 0.6);
+      ctx.closePath();
+    } else if (tipo === 'geada') {
+      for (var k = 0; k < 6; k++) {
+        var a = -Math.PI / 2 + k * Math.PI / 3;
+        ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
+      ctx.closePath();
+    } else if (tipo === 'brasa') {
+      ctx.arc(0, 0, r * 0.9, 0, Math.PI * 2);
+    } else if (tipo === 'tambor') {
+      retArredondado(ctx, -r * 0.8, -r * 0.8, r * 1.6, r * 1.6, r * 0.25);
+    } else { // sorte
+      ctx.moveTo(0, -r); ctx.lineTo(r * 0.75, 0); ctx.lineTo(0, r); ctx.lineTo(-r * 0.75, 0);
+      ctx.closePath();
+    }
+  }
+
+  // Detalhe interno, para cada forma não ser só um bloco de cor.
+  function detalheGuardiao(ctx, tipo, r) {
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.beginPath();
+    if (tipo === 'brasa') {
+      ctx.arc(0, 0, r * 0.4, 0, Math.PI * 2);
+    } else if (tipo === 'tambor') {
+      ctx.rect(-r * 0.5, -r * 0.08, r, r * 0.16);
+      ctx.rect(-r * 0.08, -r * 0.5, r * 0.16, r);
+    } else if (tipo === 'geada') {
+      for (var k = 0; k < 6; k++) {
+        var a = -Math.PI / 2 + k * Math.PI / 3;
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(a) * r * 0.55, Math.sin(a) * r * 0.55);
+      }
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      return;
+    } else if (tipo === 'lanca') {
+      ctx.moveTo(0, -r * 0.45); ctx.lineTo(r * 0.3, r * 0.35); ctx.lineTo(-r * 0.3, r * 0.35);
+    } else {
+      ctx.arc(0, 0, r * 0.22, 0, Math.PI * 2);
+    }
+    ctx.fill();
+  }
+
+  // Carta de guardião centrada em (cx, cy). escala anima a entrada.
+  function desenharCarta(ctx, g, cx, cy, escala) {
+    var cor = CORES.guardiao[g.tipo];
+    var t = (L.CASA - 8) * escala;
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    ctx.fillStyle = cor.fundo;
+    ctx.strokeStyle = cor.forma;
+    ctx.lineWidth = 2;
+    retArredondado(ctx, -t / 2, -t / 2, t, t, 9 * escala);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(0, -4 * escala);
+    ctx.fillStyle = cor.forma;
+    formaGuardiao(ctx, g.tipo, 14 * escala);
+    ctx.fill();
+    detalheGuardiao(ctx, g.tipo, 14 * escala);
+    ctx.restore();
+
+    // Nível: pontinhos na base
+    var n = g.nivel, esp = 7 * escala;
+    ctx.fillStyle = '#fff';
+    for (var i = 0; i < n; i++) {
+      ctx.beginPath();
+      ctx.arc((i - (n - 1) / 2) * esp, t / 2 - 7 * escala, 2.2 * escala, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function desenharGuardioes(ctx, estado, alfa) {
+    for (var i = 0; i < estado.tabuleiro.length; i++) {
+      var g = estado.tabuleiro[i];
+      if (!g) continue;
+      var c = L.casa(i);
+      // Entrada com leve "salto" nos primeiros 12 ticks
+      var t = Math.min(1, (estado.tick - g.criadoTick + alfa) / 12);
+      var escala = t < 1 ? 1 + 0.25 * Math.sin(t * Math.PI) - 0.6 * (1 - t) : 1;
+      desenharCarta(ctx, g, c.cx, c.cy, Math.max(0.1, escala));
+    }
+  }
+
   function desenharInimigos(ctx, estado, alfa) {
     for (var i = 0; i < estado.inimigos.length; i++) {
       var ini = estado.inimigos[i];
@@ -245,7 +353,57 @@
     ctx.restore();
   }
 
+  function desenharIconeEnergia(ctx, x, y, s) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = CORES.energia;
+    ctx.beginPath();
+    ctx.moveTo(s * 0.2, -s);
+    ctx.lineTo(-s * 0.6, s * 0.15);
+    ctx.lineTo(-s * 0.05, s * 0.15);
+    ctx.lineTo(-s * 0.2, s);
+    ctx.lineTo(s * 0.6, -s * 0.15);
+    ctx.lineTo(s * 0.05, -s * 0.15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
   function desenharControles(ctx, laco, estado, info) {
+    ctx.textBaseline = 'middle';
+
+    // Energia
+    desenharIconeEnergia(ctx, 30, 510, 13);
+    ctx.fillStyle = CORES.energia;
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 24px system-ui, sans-serif';
+    ctx.fillText(String(estado.energia), 46, 511);
+
+    // Botão Invocar (treme quando o toque é negado)
+    var bi = BOTAO_INVOCAR;
+    var ativo = GF.sim.podeInvocar(estado);
+    var tremor = info.negado > 0 ? Math.sin(info.negado * 40) * 5 * info.negado : 0;
+    ctx.save();
+    ctx.translate(tremor, 0);
+    ctx.fillStyle = ativo ? CORES.botaoInvocar : CORES.botaoApagado;
+    ctx.strokeStyle = ativo ? CORES.botaoInvocarBorda : CORES.botaoApagadoBorda;
+    ctx.lineWidth = 2.5;
+    retArredondado(ctx, bi.x, bi.y, bi.w, bi.h, 14);
+    ctx.fill();
+    ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = ativo ? CORES.texto : CORES.textoFraco;
+    ctx.font = 'bold 19px system-ui, sans-serif';
+    var cheio = GF.sim.casasLivres(estado).length === 0;
+    ctx.fillText(cheio ? 'Cheio' : 'Invocar', bi.x + bi.w / 2, bi.y + 22);
+    desenharIconeEnergia(ctx, bi.x + bi.w / 2 - 14, bi.y + 45, 8);
+    ctx.fillStyle = estado.energia >= estado.custoInvocar ? CORES.energia : CORES.vida;
+    ctx.font = 'bold 16px system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(String(estado.custoInvocar), bi.x + bi.w / 2 - 4, bi.y + 46);
+    ctx.restore();
+
+    // Botão de velocidade
     var b = BOTAO_VELOCIDADE;
     ctx.fillStyle = CORES.botao;
     ctx.strokeStyle = CORES.botaoBorda;
@@ -258,10 +416,6 @@
     ctx.textBaseline = 'middle';
     ctx.font = 'bold 16px system-ui, sans-serif';
     ctx.fillText(laco.velocidade + 'x', b.x + b.w / 2, b.y + b.h / 2 + 1);
-
-    ctx.fillStyle = CORES.textoFraco;
-    ctx.font = '13px system-ui, sans-serif';
-    ctx.fillText('etapa 2 · o botão Invocar chega na etapa 3', W / 2, 520);
 
     // Depuração
     ctx.textAlign = 'left';
@@ -293,6 +447,7 @@
     desenharFundo(ctx);
     desenharCaminho(ctx, estado.tick);
     desenharTabuleiro(ctx);
+    desenharGuardioes(ctx, estado, alfa);
     desenharInimigos(ctx, estado, alfa);
     desenharHud(ctx, estado);
     desenharControles(ctx, laco, estado, info);
@@ -314,6 +469,8 @@
     paraLogico: paraLogico,
     dentro: dentro,
     desenhar: desenhar,
+    desenharCarta: desenharCarta,
+    BOTAO_INVOCAR: BOTAO_INVOCAR,
     BOTAO_VELOCIDADE: BOTAO_VELOCIDADE
   };
 })(window.GF = window.GF || {});

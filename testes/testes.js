@@ -87,13 +87,15 @@
   // ---------- Determinismo ----------
   var SEMENTE = 12345;
   var TICKS = 60 * 120; // até 2 min de jogo (a partida de demonstração termina antes, em derrota)
-  // Etapa 2 ainda não tem ações reais: 'teste' é ignorada pela simulação, mas
-  // passa pela fila e pelo registro, o que valida o tick em que é aplicada.
+  // Invocações reais. A do tick 334 acontece sem energia suficiente e precisa
+  // ser recusada do mesmo jeito em todas as execuções.
   var ROTEIRO = [
-    { tick: 10, acao: { tipo: 'teste', n: 1 } },
-    { tick: 333, acao: { tipo: 'teste', n: 2 } },
-    { tick: 334, acao: { tipo: 'teste', n: 3 } },
-    { tick: 1200, acao: { tipo: 'teste', n: 4 } }
+    { tick: 10, acao: { tipo: 'invocar' } },
+    { tick: 333, acao: { tipo: 'invocar' } },
+    { tick: 334, acao: { tipo: 'invocar' } },
+    { tick: 1200, acao: { tipo: 'invocar' } },
+    { tick: 2000, acao: { tipo: 'invocar' } },
+    { tick: 2001, acao: { tipo: 'invocar' } }
   ];
 
   var referencia = rodarDireto(SEMENTE, ROTEIRO, TICKS);
@@ -101,6 +103,11 @@
 
   teste('Determinismo: a partida de referência chega à derrota (cobre o fim de jogo)', function () {
     afirmar(referencia.fase === 'derrota', 'fase=' + referencia.fase + ' tick=' + referencia.tick);
+  });
+
+  teste('Determinismo: o roteiro tem invocações aceitas e recusadas', function () {
+    var ocupadas = 15 - GF.sim.casasLivres(referencia).length;
+    afirmar(ocupadas >= 2 && ocupadas < ROTEIRO.length, ocupadas + ' guardiões para ' + ROTEIRO.length + ' pedidos');
   });
 
   function cenario(nome, velocidade, geradorDt) {
@@ -231,6 +238,105 @@
     var tipos2 = e2.inimigos.map(function (i) { return i.tipo; }).join();
     var tipos3 = e3.inimigos.map(function (i) { return i.tipo; }).join();
     afirmar(tipos2 !== tipos3, 'sementes diferentes deram a mesma sequência de tipos');
+  });
+
+  // ---------- Etapa 3: energia e invocação ----------
+  var EN = GF.dados.ENERGIA;
+
+  function cheio(estado) { return GF.sim.casasLivres(estado).length === 0; }
+
+  teste('Invocar: estado inicial com energia e custo configurados', function () {
+    var e = GF.sim.criarEstado(1, { semDemo: true });
+    afirmar(e.energia === EN.inicial && e.custoInvocar === EN.custoInicial, 'energia=' + e.energia + ' custo=' + e.custoInvocar);
+    afirmar(GF.sim.casasLivres(e).length === 15, 'tabuleiro não começa vazio');
+  });
+
+  teste('Invocar: gasta o custo, o custo sobe e um guardião nível 1 aparece numa casa livre', function () {
+    var e = GF.sim.criarEstado(3, { semDemo: true });
+    var casa = GF.sim.invocar(e);
+    afirmar(casa >= 0 && casa < 15, 'casa=' + casa);
+    var g = e.tabuleiro[casa];
+    afirmar(g && g.nivel === 1 && GF.dados.TIPOS_GUARDIAO.indexOf(g.tipo) >= 0, 'guardião inválido ' + JSON.stringify(g));
+    afirmar(e.energia === EN.inicial - EN.custoInicial, 'energia=' + e.energia);
+    afirmar(e.custoInvocar === EN.custoInicial + EN.aumentoCusto, 'custo=' + e.custoInvocar);
+    var casa2 = GF.sim.invocar(e);
+    afirmar(casa2 >= 0 && casa2 !== casa, 'segunda invocação na mesma casa');
+    afirmar(e.custoInvocar === EN.custoInicial + 2 * EN.aumentoCusto, 'custo após 2 = ' + e.custoInvocar);
+  });
+
+  teste('Invocar: sem energia suficiente nada muda (nem o RNG)', function () {
+    var e = GF.sim.criarEstado(4, { semDemo: true });
+    e.energia = EN.custoInicial - 1;
+    var antes = GF.sim.resumo(e);
+    afirmar(GF.sim.invocar(e) === -1, 'deveria recusar');
+    afirmar(GF.sim.resumo(e) === antes, 'estado mudou');
+    e.energia = EN.custoInicial; // exatamente o custo: pode
+    afirmar(GF.sim.invocar(e) >= 0 && e.energia === 0, 'com energia exata deveria invocar');
+  });
+
+  teste('Invocar: 15 invocações preenchem as 15 casas; a 16ª é recusada sem gastar', function () {
+    var e = GF.sim.criarEstado(5, { semDemo: true });
+    e.energia = 1e6;
+    var vistas = {};
+    for (var i = 0; i < 15; i++) {
+      var c = GF.sim.invocar(e);
+      afirmar(c >= 0 && !vistas[c], 'casa repetida ou recusa na invocação ' + (i + 1));
+      vistas[c] = true;
+    }
+    afirmar(cheio(e), 'tabuleiro não ficou cheio');
+    var energia = e.energia, custo = e.custoInvocar;
+    afirmar(GF.sim.invocar(e) === -1 && e.energia === energia && e.custoInvocar === custo, 'invocou com tabuleiro cheio');
+    afirmar(!GF.sim.podeInvocar(e), 'podeInvocar deveria ser falso');
+  });
+
+  teste('Invocar: os 5 tipos e as 15 casas são sorteados de forma equilibrada', function () {
+    var porTipo = {}, porCasa = {}, n = 0;
+    for (var s = 1; s <= 600; s++) {
+      var e = GF.sim.criarEstado(s, { semDemo: true });
+      var c = GF.sim.invocar(e);
+      porTipo[e.tabuleiro[c].tipo] = (porTipo[e.tabuleiro[c].tipo] || 0) + 1;
+      porCasa[c] = (porCasa[c] || 0) + 1;
+      n++;
+    }
+    GF.dados.TIPOS_GUARDIAO.forEach(function (t) {
+      var f = (porTipo[t] || 0) / n;
+      afirmar(f > 0.12 && f < 0.28, t + ' saiu em ' + (f * 100).toFixed(1) + '%');
+    });
+    for (var k = 0; k < 15; k++) afirmar((porCasa[k] || 0) >= 15, 'casa ' + k + ' saiu ' + (porCasa[k] || 0) + ' vezes em 600');
+  });
+
+  teste('Invocar: pela fila de ações, num passo de jogo', function () {
+    var e = GF.sim.criarEstado(6, { semDemo: true });
+    GF.sim.agendar(e, { tipo: 'invocar' });
+    afirmar(GF.sim.casasLivres(e).length === 15, 'agendar não pode aplicar na hora');
+    GF.sim.passo(e);
+    afirmar(GF.sim.casasLivres(e).length === 14, 'não invocou no passo');
+    afirmar(e.registro.length === 1 && e.registro[0].tick === 0, 'registro errado');
+  });
+
+  teste('Invocar: recusado depois da derrota', function () {
+    var e = GF.sim.criarEstado(7, { semDemo: true });
+    e.fase = 'derrota';
+    afirmar(GF.sim.invocar(e) === -1, 'invocou após a derrota');
+  });
+
+  teste('Energia: +1 a cada 0,5 s (120 por minuto), sempre inteira', function () {
+    var e = GF.sim.criarEstado(8, { semDemo: true });
+    for (var t = 0; t < 60 * 60; t++) GF.sim.passo(e);
+    afirmar(e.energia === EN.inicial + 119 || e.energia === EN.inicial + 120, 'energia=' + e.energia);
+    afirmar(e.energia === Math.floor(e.energia), 'energia não inteira');
+  });
+
+  teste('Energia: abater um inimigo dá a recompensa do tipo; dano parcial não dá', function () {
+    var e = GF.sim.criarEstado(9, { semDemo: true });
+    var ini = GF.sim.criarInimigo(e, 'tanque');
+    var en = e.energia;
+    afirmar(GF.sim.causarDano(e, ini, 100) === false, 'morreu com dano parcial');
+    afirmar(ini.vida === 200 && e.energia === en && e.inimigos.length === 1, 'dano parcial errado');
+    afirmar(GF.sim.causarDano(e, ini, 500) === true, 'não morreu com dano letal');
+    afirmar(e.inimigos.length === 0, 'inimigo não removido');
+    afirmar(e.energia === en + GF.dados.INIMIGOS.tanque.energia, 'energia=' + e.energia);
+    afirmar(GF.sim.causarDano(e, ini, 500) === false && e.energia === en + GF.dados.INIMIGOS.tanque.energia, 'recompensa dada duas vezes');
   });
 
   // ---------- Resultado ----------

@@ -26,7 +26,10 @@
       fila: [],                 // ações aguardando o próximo passo
       registro: [],             // ações já aplicadas: { tick, acao }
       vida: GF.dados.JOGADOR.vidaInicial,
-      tabuleiro: tabuleiro,     // 15 casas; null = livre
+      energia: GF.dados.ENERGIA.inicial,   // sempre inteira
+      custoInvocar: GF.dados.ENERGIA.custoInicial,
+      invocacoes: 0,
+      tabuleiro: tabuleiro,     // 15 casas; null = livre, ou { id, tipo, nivel, criadoTick }
       inimigos: [],
       proximoId: 1,
       demo: opcoes.semDemo ? null : { proximo: GF.dados.DEMO.primeiroTick }
@@ -37,9 +40,44 @@
     estado.fila.push(acao);
   }
 
+  // Tipos desconhecidos são ignorados, mas registrados.
   function aplicarAcao(estado, acao) {
-    // Etapa 2 ainda não tem ações do jogador (invocar vem na etapa 3).
-    // Tipos desconhecidos são ignorados, mas registrados.
+    if (acao.tipo === 'invocar') invocar(estado);
+  }
+
+  // ---------- Energia e invocação ----------
+  function casasLivres(estado) {
+    var livres = [];
+    for (var i = 0; i < estado.tabuleiro.length; i++) if (!estado.tabuleiro[i]) livres.push(i);
+    return livres;
+  }
+
+  // Também usada pela interface para mostrar o botão apagado; mas quem decide é invocar().
+  function podeInvocar(estado) {
+    return estado.fase === 'jogando' &&
+           estado.energia >= estado.custoInvocar &&
+           casasLivres(estado).length > 0;
+  }
+
+  // Coloca um guardião aleatório de nível 1 numa casa livre aleatória.
+  // Retorna o índice da casa, ou -1 se não foi possível (nada muda nesse caso).
+  function invocar(estado) {
+    if (!podeInvocar(estado)) return -1;
+    var livres = casasLivres(estado);
+    var casa = livres[GF.rng.inteiro(estado.rng, livres.length)];
+    var tipos = GF.dados.TIPOS_GUARDIAO;
+    var tipo = tipos[GF.rng.inteiro(estado.rng, tipos.length)];
+
+    estado.energia -= estado.custoInvocar;
+    estado.invocacoes++;
+    estado.custoInvocar += GF.dados.ENERGIA.aumentoCusto;
+    estado.tabuleiro[casa] = { id: estado.proximoId++, tipo: tipo, nivel: 1, criadoTick: estado.tick };
+    return casa;
+  }
+
+  function ganharEnergiaPorTempo(estado) {
+    // tick 0 não conta, para não ganhar energia de graça no início
+    if (estado.tick > 0 && estado.tick % GF.dados.ENERGIA.ticksPorPonto === 0) estado.energia++;
   }
 
   // ---------- Inimigos ----------
@@ -58,6 +96,19 @@
     };
     estado.inimigos.push(ini);
     return ini;
+  }
+
+  // Ponto único por onde todo dano passa (usado pelos guardiões na etapa 4).
+  // Retorna true se o inimigo morreu.
+  function causarDano(estado, ini, dano) {
+    if (ini.vida <= 0) return false; // já morto neste passo
+    ini.vida -= dano;
+    if (ini.vida > 0) return false;
+    ini.vida = 0;
+    var idx = estado.inimigos.indexOf(ini);
+    if (idx >= 0) estado.inimigos.splice(idx, 1);
+    estado.energia += GF.dados.INIMIGOS[ini.tipo].energia;
+    return true;
   }
 
   function moverInimigos(estado) {
@@ -98,10 +149,13 @@
     }
     estado.fila.length = 0;
 
-    // 2) Surgimento de inimigos
+    // 2) Energia passiva
+    ganharEnergiaPorTempo(estado);
+
+    // 3) Surgimento de inimigos
     gerarDemo(estado);
 
-    // 3) Movimento e escapes
+    // 4) Movimento e escapes
     moverInimigos(estado);
 
     estado.tick++;
@@ -114,6 +168,8 @@
       fase: estado.fase,
       rng: estado.rng.s,
       vida: estado.vida,
+      energia: estado.energia,
+      custoInvocar: estado.custoInvocar,
       tabuleiro: estado.tabuleiro,
       inimigos: estado.inimigos
     });
@@ -128,6 +184,10 @@
     agendar: agendar,
     passo: passo,
     criarInimigo: criarInimigo,
+    causarDano: causarDano,
+    podeInvocar: podeInvocar,
+    invocar: invocar,
+    casasLivres: casasLivres,
     resumo: resumo
   };
 })(window.GF = window.GF || {});
