@@ -15,10 +15,10 @@
     },
 
     // Os 5 guardiões. Alcance: o caminho inteiro.
-    // dano(nível) = dano * (1 + DANO_POR_NIVEL * (nível - 1))
+    // dano(nível) = dano * MULT_DANO_NIVEL ^ (nível - 1)   (multiplicativo: ver D26)
     // intervaloTicks = ticks entre ataques (60 = 1 s), antes do buff do Tambor.
     TIPOS_GUARDIAO: ['lanca', 'geada', 'brasa', 'tambor', 'sorte'],
-    DANO_POR_NIVEL: 0.8,
+    MULT_DANO_NIVEL: 2.5,
     NIVEL_MAX: 7,      // dois guardiões de nível 7 não se fundem
     VEL_PROJETIL: 420, // px/s
     GUARDIOES: {

@@ -389,10 +389,32 @@
     return ini;
   }
 
-  teste('Combate: dano por nível = base × (1 + 0,8 × (nível − 1))', function () {
+  teste('Combate: dano por nível = base × 2,5^(nível − 1)', function () {
     afirmar(C.dano('lanca', 1) === 20, 'n1=' + C.dano('lanca', 1));
-    afirmar(perto(C.dano('lanca', 3), 52, 1e-9), 'n3=' + C.dano('lanca', 3));
-    afirmar(perto(C.dano('sorte', 7), 12 * 5.8, 1e-9), 'sorte n7=' + C.dano('sorte', 7));
+    afirmar(perto(C.dano('lanca', 2), 50, 1e-9), 'n2=' + C.dano('lanca', 2));
+    afirmar(perto(C.dano('lanca', 3), 125, 1e-9), 'n3=' + C.dano('lanca', 3));
+    afirmar(perto(C.dano('sorte', 7), 12 * Math.pow(2.5, 6), 1e-6), 'sorte n7=' + C.dano('sorte', 7));
+  });
+
+  // Regra de design (D26): fundir duas cartas de nível n numa de nível n+1 nunca
+  // pode diminuir o dano total. Medido na simulação, não só na fórmula.
+  teste('Fusão compensa: guardião de nível n+1 causa pelo menos o dobro do dano do nível n (n = 1..6)', function () {
+    function danoEm10s(tipo, nivel) {
+      var casa = {}; casa[7] = [tipo, nivel];
+      var e = cenarioCombate(casa, 11); // mesma semente: mesmos críticos da Sorte
+      var ini = inimigoEm(e, 'tanque', 300, 1e15);
+      ini.vel = 0;
+      rodar(e, 600);
+      return ini.vidaMax - ini.vida;
+    }
+    ['lanca', 'geada', 'brasa', 'sorte'].forEach(function (tipo) {
+      for (var n = 1; n < GF.dados.NIVEL_MAX; n++) {
+        var a = danoEm10s(tipo, n), b = danoEm10s(tipo, n + 1);
+        afirmar(a > 0, tipo + ' n' + n + ' não causou dano');
+        afirmar(b >= 2 * a, tipo + ': n' + (n + 1) + ' causou ' + b.toFixed(1) + ', menos que 2 × n' + n + ' (' + a.toFixed(1) + ')');
+      }
+    });
+    afirmar(GF.dados.MULT_DANO_NIVEL >= 2, 'MULT_DANO_NIVEL abaixo de 2 quebra a regra');
   });
 
   teste('Lança: abate um Fragmento (100 de vida) com 5 disparos e recebe a energia', function () {

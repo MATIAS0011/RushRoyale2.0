@@ -8,7 +8,8 @@
 
   // ---------- Atributos por nível ----------
   function dano(tipo, nivel) {
-    return D.GUARDIOES[tipo].dano * (1 + D.DANO_POR_NIVEL * (nivel - 1));
+    // Multiplicativo: cada nível vale MULT_DANO_NIVEL vezes o anterior (> 2 = fundir compensa).
+    return D.GUARDIOES[tipo].dano * Math.pow(D.MULT_DANO_NIVEL, nivel - 1);
   }
   function lentidao(nivel) {
     var g = D.GUARDIOES.geada;

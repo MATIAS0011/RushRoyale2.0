@@ -65,7 +65,7 @@ Cada carta mostra a forma do guardião sobre um fundo escuro da mesma cor. O **n
 ### Combate (em `js/dados.js` e `js/combate.js`)
 - **Alcance:** todo guardião alcança o caminho inteiro.
 - **Alvo:** o inimigo **mais avançado** no caminho (empate: o que surgiu primeiro). Exceção: a **Geada prefere o mais avançado que ainda não está lento**. Se todos estiverem lentos, mira o mais avançado.
-- **Dano por nível:** `dano base × (1 + 0,8 × (nível − 1))`. Ou seja, nível 2 = 1,8×, nível 3 = 2,6× … nível 7 = 5,8×.
+- **Dano por nível (multiplicativo):** `dano base × 2,5^(nível − 1)`. Ou seja, nível 2 = 2,5×, nível 3 = 6,25×, nível 4 ≈ 15,6×, nível 5 ≈ 39×, nível 6 ≈ 98×, nível 7 ≈ 244×. **Regra:** um guardião de nível n+1 causa pelo menos o dobro do dano do nível n, então fundir duas cartas nunca diminui o dano (ver D26).
 - **Projéteis** voam a 420 px/s, perseguindo o alvo. Se o alvo morrer ou escapar antes, o projétil some sem efeito.
 - Um guardião recém-invocado já está pronto e dispara assim que houver um inimigo.
 
@@ -99,6 +99,13 @@ Cada carta mostra a forma do guardião sobre um fundo escuro da mesma cor. O **n
 **Conclusões**
 - **A Lança domina em dano por segundo.** Precisa ser comparada com Sorte e Brasa e reequilibrada.
 - **O começo da partida é apertado demais.** As derrotas acontecem entre 45 e 76 s, com só 4 ou 5 cartas no tabuleiro. Isso se liga à D22: um começo sem guardiões de dano perde.
+
+**QA da etapa 5:** 60 partidas, mesmo robô, sem fundir contra fundindo sempre.
+- **Antes:** a fusão enfraquecia o jogador. Sem fundir sobreviveram 8/20; fundindo sempre, só 3/20. **Resolvido pela D26.**
+- **Depois da D26** (QA interno, sementes 1 a 40): fundindo sempre 24/40, sem fundir 15/40.
+- **Ainda pendente:** mesmo fundindo, as derrotas restantes caem entre 45 e 64 s. É o começo apertado de cima, que a fusão não resolve.
+
+**O Tambor não escala com o nível.** O dano multiplicativo não o afeta, porque ele não causa dano. Testei o buff por nível em +10%, +20% e +30% e não houve diferença mensurável (24, 23 e 23 de 40 vitórias fundindo), então ele ficou em +10%. Rever na etapa 7: fundir e sortear um Tambor ainda pode enfraquecer o tabuleiro.
 
 ---
 
@@ -194,6 +201,22 @@ O arraste vive em `ui.arraste`, no `js/main.js`, fora do estado da simulação. 
 ### D25. Fusões no teste de determinismo
 O roteiro aceita ações calculadas na hora, a partir do estado (um "robô" que funde o primeiro par válido). Como o estado é idêntico em todas as execuções, a ação calculada também é. A partida de referência (semente 7) tem fusões, e os 5 tipos lutam em algum momento.
 
+### D26. Dano por nível multiplicativo (×2,5), no lugar do linear (+80%)
+**Problema (QA da etapa 5):** com dano linear, duas cartas de nível 1 somavam 2,0× de dano, e a carta de nível 2 resultante dava só 1,8×. Além disso, o tipo sorteado podia sair um Tambor, que não causa dano. Fundir piorava o tabuleiro: 3/20 vitórias fundindo sempre contra 8/20 sem fundir.
+
+**Mudança:** `dano(nível) = base × MULT_DANO_NIVEL^(nível − 1)`, com `MULT_DANO_NIVEL = 2,5` (em `js/dados.js`). O QA sugeriu ×2,5 como ponto de partida. Com ×2,5, a carta fundida vale 2,5× contra os 2,0× das duas cartas separadas: um ganho de 25% em dano, mais uma casa livre no tabuleiro.
+
+**Resultado** (QA interno, sementes 1 a 40): fundindo sempre 24/40, sem fundir 15/40. Antes eram 3/20 contra 10/20 nas sementes 1 a 20.
+
+**O que não mudou, e por quê:**
+- **Lentidão da Geada e chance de crítico da Sorte** são porcentagens com teto. Multiplicar estouraria 100% em poucos níveis, então continuam lineares.
+- **Raio da Brasa** continua linear. A Brasa já ganha com o dano multiplicativo.
+- **Buff do Tambor** continua linear (+10% por nível). ×2,5 daria +4880% no nível 7, e um buff linear mais forte não mostrou efeito no QA. Ver "Pendências de balanceamento".
+
+**Garantia:** o teste "Fusão compensa" mede na simulação, para Lança, Geada, Brasa e Sorte, nos níveis 1 a 6, que o nível n+1 causa ≥ 2× o dano do nível n em 10 s. Com a fórmula antiga ele falha.
+
+**Consequência a acompanhar:** o nível 7 causa ≈ 244× o dano base. A vida dos inimigos e dos chefes nas ondas (etapa 6) precisa ser calibrada para isso.
+
 ---
 
 ## Histórico das etapas
@@ -223,3 +246,4 @@ O roteiro aceita ações calculadas na hora, a partir do estado (um "robô" que 
 - Arrastar com toque ou mouse, destinos válidos destacados, carta elevada acima do dedo no toque, efeito visual de fusão.
 - Fusão validada na simulação por casa + id, nível máximo 7 e tipo sorteado.
 - Testes: 49 automáticos (6 novos de fusão), mais a integração com eventos de ponteiro reais (mouse, toque, destino inválido, soltar fora, toque em casa vazia).
+- **Ajuste pós-QA:** dano por nível passou a ser multiplicativo (×2,5), porque a fusão enfraquecia o jogador (D26). Teste novo garante n+1 ≥ 2× o dano de n. Total: 50 testes.
